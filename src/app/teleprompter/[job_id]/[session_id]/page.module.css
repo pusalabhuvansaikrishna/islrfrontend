@@ -1,0 +1,72 @@
+/* page.module.css — ported from the recorder project's teleprompter
+   popup CSS, unchanged. Deliberately hardcoded dark colors rather than
+   this project's --bg/--text theme tokens: it's a fixed-purpose
+   presenter display, not a themed part of the dashboard. */
+
+.page {
+  position: relative;
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  background: #050506;
+  color: #fff;
+  overflow: hidden;
+}
+
+.countdownOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.countdownNumber {
+  font-size: 140px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.scrollArea {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 20vh 12vw;
+  scroll-behavior: auto;
+}
+
+/* Hide scrollbars — this is driven programmatically (scrollTop), not by
+   the presenter manually scrolling. */
+.scrollArea::-webkit-scrollbar {
+  display: none;
+}
+.scrollArea {
+  scrollbar-width: none;
+}
+
+.scriptText {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  /* font-size is set inline from React (driven by the session page's
+     font size stepper) — no default here to avoid two sources of truth. */
+  line-height: 1.6;
+  font-weight: 600;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.statusBar {
+  flex: 0 0 auto;
+  padding: 10px 16px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}

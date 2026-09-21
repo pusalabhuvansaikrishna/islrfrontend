@@ -1,0 +1,125 @@
+.row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 4px;
+}
+
+.label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.controlWrap {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  min-width: 220px;
+  cursor: pointer;
+}
+
+.select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.status {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.statusSaved {
+  font-size: 0.78rem;
+  color: var(--accent);
+}
+
+.error {
+  font-size: 0.78rem;
+  color: var(--danger);
+}
+
+.createRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.createInput {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  min-width: 180px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.createInput:focus {
+  border-color: var(--accent);
+}
+
+.createInput:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.createSaveBtn {
+  padding: 0 14px;
+  height: 34px;
+  border: none;
+  border-radius: calc(var(--radius) - 4px);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.createSaveBtn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.createSaveBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.createCancelBtn {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0 12px;
+  height: 34px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.createCancelBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.createCancelBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

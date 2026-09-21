@@ -1,69 +1,161 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, type FormEvent } from "react";
+import styles from "./page.module.css";
+import ThemeToggle from "@/components/ThemeToggle";
+import { BASE_URL } from "@/config/api";
+
+export default function LoginPage() {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError("");
+
+    if (!username.trim() || !password.trim()) {
+      setError("Please enter both username and password.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${BASE_URL}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ username: username.trim(), password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const detail = data.detail;
+        if (typeof detail === "string") {
+          setError(detail);
+        } else if (Array.isArray(detail)) {
+          setError(detail.map((d: { msg: string }) => d.msg).join(", "));
+        } else {
+          setError("Invalid credentials. Please try again.");
+        }
+        return;
+      }
+
+      document.cookie = "has_session=true; path=/; SameSite=Lax";
+      window.location.href = "/dashboard";
+    } catch {
+      setError("Unable to connect to the server. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <div className={styles.brandGroup}>
+          <div className={styles.logoWrap} aria-hidden="true">
+            <SignMarkIcon />
+          </div>
+          <h1 className={styles.portalTitle}>ISLR DATA CAPTURE</h1>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <ThemeToggle />
+      </header>
+
+      <main className={styles.main}>
+        <div className={styles.illustrationWrap} aria-hidden="true">
+          <CaptureIllustration />
+        </div>
+
+        <div className={styles.cardWrap}>
+          <div className={styles.card}>
+            <form onSubmit={handleLogin} noValidate>
+              <div className={styles.fieldGroup}>
+                <label htmlFor="username" className={styles.label}>
+                  Username
+                </label>
+                <input
+                  id="username"
+                  type="text"
+                  autoComplete="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className={styles.input}
+                  spellCheck={false}
+                />
+              </div>
+
+              <div className={styles.fieldGroup}>
+                <label htmlFor="password" className={styles.label}>
+                  Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={styles.input}
+                />
+              </div>
+
+              {error && <p className={styles.error}>{error}</p>}
+
+              <div className={styles.btnWrap}>
+                <button
+                  type="submit"
+                  className={styles.loginBtn}
+                  disabled={loading}
+                >
+                  {loading ? <span className={styles.spinner} /> : "Login"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       </main>
     </div>
+  );
+}
+
+/* Inline marks so the page has no dependency on image assets that may not
+   exist yet in the project. Swap these for <Image> + real files anytime. */
+
+function SignMarkIcon() {
+  return (
+    <svg viewBox="0 0 48 48" width="18" height="18" fill="none">
+      <path
+        d="M14 26V13a3 3 0 0 1 6 0v9M20 22v-4a3 3 0 0 1 6 0v4M26 22.5v-2a3 3 0 0 1 6 0V24M32 24v-1a2.6 2.6 0 0 1 5.2 0v9.2c0 5.5-4.3 10.8-11.4 10.8h-2.2C16.8 43 12 38 12 32.6V27l-3.4-3.6a2.4 2.4 0 0 1 3.3-3.5L14 22"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function CaptureIllustration() {
+  return (
+    <svg viewBox="0 0 320 260" width="100%" height="100%" fill="none">
+      <rect x="18" y="24" width="284" height="184" rx="14" className={styles.illoFrame} />
+      <rect x="34" y="42" width="252" height="148" rx="8" className={styles.illoScreen} />
+      <circle cx="160" cy="116" r="34" className={styles.illoAccent} />
+      <path
+        d="M144 122v-16a4 4 0 0 1 8 0v12M152 118v-5a4 4 0 0 1 8 0v5M160 118.5v-3a4 4 0 0 1 8 0v4M168 119.5v-1.2a3.4 3.4 0 0 1 6.8 0v11.7c0 7-5.4 13.7-14.4 13.7h-2.7C149.1 144 143 137.5 143 130.4v-7l-4.3-4.5a3 3 0 0 1 4.2-4.4l4.1 3.7"
+        stroke="var(--surface)"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="252" cy="60" r="6" className={styles.illoDot} />
+      <circle cx="268" cy="60" r="6" className={styles.illoDotFaint} />
+      <rect x="60" y="170" width="60" height="8" rx="4" className={styles.illoBar} />
+      <rect x="60" y="184" width="100" height="8" rx="4" className={styles.illoBarFaint} />
+    </svg>
   );
 }

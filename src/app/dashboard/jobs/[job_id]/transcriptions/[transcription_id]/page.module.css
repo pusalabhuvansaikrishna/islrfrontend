@@ -1,0 +1,259 @@
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 3rem;
+  color: #fff;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 1.25rem;
+}
+
+.breadcrumbLink {
+  color: rgba(255, 255, 255, 0.75);
+  text-decoration: none;
+}
+
+.breadcrumbLink:hover {
+  text-decoration: underline;
+}
+
+.breadcrumbSep {
+  opacity: 0.4;
+}
+
+.stateText {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+}
+
+.errorText {
+  color: #ff6b6b;
+  font-size: 14px;
+}
+
+.header {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sentenceText {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.coverageSummary {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.signerList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.signerCard {
+  background: #141414;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.signerHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: none;
+  color: #fff;
+  padding: 0.9rem 1.1rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.signerName {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.signerMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.takeCount {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.validBadge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+}
+
+.validBadge[data-valid="true"] {
+  background: rgba(52, 199, 89, 0.18);
+  color: #34c759;
+}
+
+.validBadge[data-valid="false"] {
+  background: rgba(255, 107, 107, 0.16);
+  color: #ff6b6b;
+}
+
+.chevron {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  transition: transform 120ms ease;
+}
+
+.chevron[data-open="true"] {
+  transform: rotate(180deg);
+}
+
+.signerBody {
+  padding: 0 1.1rem 1.1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.takeTabs {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin: 0.9rem 0;
+}
+
+.takeTab {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 12.5px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.takeTab[data-active="true"] {
+  background: #fff;
+  color: #111;
+  border-color: #fff;
+}
+
+.takeTabDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.takeTabDot[data-valid="true"] {
+  background: #34c759;
+}
+
+.takeTabDot[data-valid="false"] {
+  background: #ff6b6b;
+}
+
+.takeMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.takeMetaText {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.videoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.videoTile {
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: block;
+  background: #000;
+}
+
+.videoLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.6rem;
+  font-size: 12.5px;
+}
+
+.videoLabelMeta {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11.5px;
+}
+
+.validateActions {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.validateButton {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  cursor: pointer;
+}
+
+.validateButton:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.validateButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.validateButton[data-kind="valid"]:not(:disabled) {
+  border-color: rgba(52, 199, 89, 0.4);
+  color: #34c759;
+}
+
+.validateButton[data-kind="invalid"]:not(:disabled) {
+  border-color: rgba(255, 107, 107, 0.4);
+  color: #ff6b6b;
+}

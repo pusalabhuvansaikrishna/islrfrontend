@@ -1,0 +1,174 @@
+/* Location: src/components/Photocapturemodal.module.css
+   (must keep the *.module.css suffix -- see the note in chat about why
+   a *.modal.css file would silently produce no styles at all)
+
+   Mirrors the overlay/modal/actionsRow pattern used by
+   CreateSignerModal.module.css -- adjust colors/spacing to match your
+   actual design tokens if they differ from these placeholders. */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  width: 480px;
+  max-width: calc(100vw - 32px);
+  background: #1c1c1e;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #f2f2f2;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  color: #9a9a9a;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.closeBtn:hover {
+  color: #f2f2f2;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hintText {
+  color: #9a9a9a;
+  font-size: 13px;
+  margin: 0;
+}
+
+.errorText {
+  color: #ff6b6b;
+  font-size: 13px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dismissErrorBtn {
+  background: none;
+  border: none;
+  color: #ff9a9a;
+  text-decoration: underline;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cameraPicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cameraChip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #3a3a3c;
+  background: #2c2c2e;
+  color: #e5e5e5;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.cameraChip:hover:not(:disabled) {
+  border-color: #5a5a5c;
+}
+
+.cameraChipActive {
+  background: #0a84ff;
+  border-color: #0a84ff;
+  color: #fff;
+}
+
+.cameraChip:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.feedFrame {
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.feedImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.feedPlaceholder {
+  color: #7a7a7a;
+  font-size: 13px;
+  text-align: center;
+  padding: 0 24px;
+}
+
+.actionsRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ghostBtn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid #3a3a3c;
+  background: transparent;
+  color: #e5e5e5;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.captureBtn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: none;
+  background: #0a84ff;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.captureBtn:disabled,
+.ghostBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -1,0 +1,636 @@
+/* RecorderPanel.module.css
+   Translated from the recorder project's page.module.css. Variable
+   mapping applied throughout:
+     --fg          -> --text
+     --fg-muted    -> --text-muted
+     --card-bg     -> --surface
+     --card-border -> --border
+     --error       -> --danger
+     --accent-soft -> color-mix(in srgb, var(--accent) 12%, transparent)
+       (this project's globals.css doesn't define --accent-soft, so it's
+       computed inline wherever the original used it)
+*/
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text);
+}
+
+.headerBadges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.agentBadge {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.agentBadge[data-status="connected"] {
+  color: #24b89e;
+  background: rgba(53, 208, 181, 0.14);
+}
+
+.agentBadge[data-status="connecting"] {
+  color: #d9a441;
+  background: rgba(217, 164, 65, 0.14);
+}
+
+.agentBadge[data-status="disconnected"],
+.agentBadge[data-status="error"] {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.cameraCountBadge {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  white-space: nowrap;
+}
+
+/* ---- Camera assignment panel ---- */
+
+.assignPanel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 24px;
+}
+
+.assignTitle {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 6px;
+  color: var(--text);
+}
+
+.assignHint {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0 0 14px;
+  line-height: 1.45;
+}
+
+.assignGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.assignRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.assignCamName {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.assignButtons {
+  display: flex;
+  gap: 6px;
+}
+
+.assignBtn {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.assignBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.assignBtn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.assignBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+/* ---- Stage (dark "vanity mirror" tone, deliberately fixed-dark like
+   the camera feeds themselves rather than following the site theme) ---- */
+
+.stage {
+  position: relative;
+  overflow: hidden;
+  margin: 0;
+  padding: 20px 18px;
+  border-radius: 20px;
+  background: radial-gradient(120% 140% at 50% 0%, #1c1d23 0%, #101114 65%, #0a0b0d 100%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.grid {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.slot {
+  flex: 1 1 0;
+  min-width: 160px;
+  max-width: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.slotLabel {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.feedBox {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #050506;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 16px 32px -18px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 5px rgba(8, 8, 10, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.feedEmptyText {
+  margin: 0;
+  padding: 16px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.32);
+}
+
+.feedPlaceholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 12.5px;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.03) 0 10px,
+    rgba(255, 255, 255, 0.015) 10px 20px
+  );
+}
+
+.feedLivePill {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.reassignBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 10, 12, 0.55);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 10.5px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+
+.reassignBtn:hover {
+  background: rgba(220, 53, 69, 0.85);
+  border-color: rgba(220, 53, 69, 0.9);
+  color: #fff;
+}
+
+.previewToggleBtn {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 10, 12, 0.55);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.previewToggleBtn:hover:not(:disabled) {
+  background: rgba(36, 184, 158, 0.85);
+  border-color: rgba(36, 184, 158, 0.9);
+  color: #fff;
+}
+
+.previewToggleBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: rgba(10, 10, 12, 0.4);
+}
+
+.feedPreviewImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ---- Controls ---- */
+
+.controlsRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.recordBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(155deg, #ff5f5f, #e23e3e);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 14px -3px rgba(226, 62, 62, 0.5);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.recordBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px -3px rgba(226, 62, 62, 0.65);
+}
+
+.recordBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: none;
+  transform: none;
+}
+
+.stopBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.stopBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.stopBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.countdownLabel {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ---- Teleprompter monitor (bottom panel with font/speed controls) ---- */
+
+.prompterMonitor {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+
+.prompterMonitorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.boxTitleSmall {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.prompterMonitorActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.openPrompterBtn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.openPrompterBtn:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.mockRunBtn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid #24b89e;
+  background: transparent;
+  color: #24b89e;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.mockRunBtn:hover:not(:disabled) {
+  background: rgba(53, 208, 181, 0.14);
+}
+
+.mockRunBtn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.mockRunBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.prompterProgress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.prompterProgressBar {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  overflow: hidden;
+}
+
+.prompterProgressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #35d0b5, #24b89e);
+  transition: width 0.15s linear;
+}
+
+/* ---- Content grid: single column now -- the stage (with its row of
+   camera slots) on top, and the teleprompter live preview stacked
+   directly below it at a matching, modest size, instead of floating in
+   its own oversized side column that left a big empty gap next to a
+   too-tall camera box. ---- */
+
+.contentGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.mainColumn {
+  min-width: 0;
+}
+
+.telePreviewFloating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.telePreviewBox {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 4 / 3;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #050506;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 16px 32px -18px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 5px rgba(8, 8, 10, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+}
+
+.telePreviewScroll {
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  scrollbar-width: none;
+}
+
+.telePreviewScroll::-webkit-scrollbar {
+  display: none;
+}
+
+.telePreviewLine {
+  text-align: center;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #fff;
+  transition: opacity 0.2s ease, font-weight 0.2s ease;
+}
+
+.telePreviewBox .feedLivePill {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+}
+
+/* ---- Font size + speed controls ---- */
+
+.prompterControlsRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 28px;
+  margin: 12px 0 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+
+.prompterControlGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.prompterControlLabel {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.fontStepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fontStepBtn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.fontStepBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.fontStepBtn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.fontStepBtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.fontStepValue {
+  min-width: 44px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.speedSlider {
+  width: 140px;
+  accent-color: #24b89e;
+  cursor: pointer;
+}
+
+@media (max-width: 700px) {
+  .grid {
+    flex-direction: column;
+    align-items: center;
+  }
+  .slot {
+    max-width: 320px;
+    width: 100%;
+  }
+  .telePreviewBox {
+    max-width: 320px;
+  }
+}

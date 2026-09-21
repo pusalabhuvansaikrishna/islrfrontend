@@ -1,0 +1,375 @@
+.page {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.breadcrumbLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.breadcrumbLink:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.breadcrumbSep {
+  opacity: 0.6;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ---- Session status + end-session action ---- */
+
+.statusPill {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 10px;
+  border-radius: 999px;
+  color: #24b89e;
+  background: rgba(53, 208, 181, 0.14);
+}
+
+.statusPill[data-ended="true"] {
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.endBtn {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.endBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.endBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.body {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+  min-height: 0;
+  align-items: flex-start;
+}
+
+.sidebar {
+  width: 340px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.sidebarTitle {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin: 0 0 12px;
+}
+
+.sidebarTitleSpaced {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.transcriptionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.transcriptionItem {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 10px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 1.45;
+  border: 1px solid transparent;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.transcriptionItem:hover:not(:disabled) {
+  background: var(--bg);
+  border-color: var(--border);
+}
+
+.transcriptionItem:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Active selection -- the one currently loaded into RecorderPanel (and
+   mirrored to the teleprompter popup). Uses the accent color so it's
+   visually distinct from plain hover. Stays fully visible even while
+   disabled=false but selected, since it's the one row that's never
+   actually disabled by recorderBusy (see page.tsx). */
+.transcriptionItemSelected,
+.transcriptionItemSelected:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: var(--accent);
+  opacity: 1;
+}
+
+.transcriptionIndex {
+  flex-shrink: 0;
+  color: var(--accent);
+  font-weight: 600;
+  min-width: 18px;
+  text-align: right;
+}
+
+.transcriptionBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.transcriptionText {
+  color: var(--text);
+}
+
+/* Read-only row in the "Done in this session" list (not clickable). */
+.doneItem {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  opacity: 0.85;
+}
+
+/* Coverage badge -- how many of the required signers have already
+   recorded this transcription (t.signers_recorded / t.required_signer_count
+   from TranscriptionRow). Amber while incomplete, accent-green once
+   every required signer has been recorded. */
+.coverageBadge {
+  align-self: flex-start;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 1px 8px;
+  border-radius: 999px;
+  color: #d9a441;
+  background: rgba(217, 164, 65, 0.14);
+}
+
+.coverageBadge[data-complete="true"] {
+  color: #24b89e;
+  background: rgba(53, 208, 181, 0.14);
+}
+
+/* Take result pill: green when valid, red when invalid. */
+.takePill {
+  align-self: flex-start;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 1px 8px;
+  border-radius: 999px;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+.takePill[data-valid="true"] {
+  color: #24b89e;
+  background: rgba(53, 208, 181, 0.14);
+}
+
+/* RecorderPanel handles its own internal cards/spacing, so this is just
+   a flex slot for it — no border/padding of its own to avoid a
+   card-inside-a-card look. */
+.mainContent {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- Ended session: read-only history panel ---- */
+
+.historyPanel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.historyTitle {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text);
+}
+
+.historyText {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.takeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.takeCard {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.takeHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.takeTime {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Video playback grid -- one tile per camera angle for a take. Replaces
+   the old text-only videoList/videoRow (angle/duration/resolution/fps
+   with no way to actually watch the clip). */
+.videoGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.videoTile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 220px;
+  flex: 0 0 auto;
+}
+
+.videoPlayer {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  background: #000;
+  display: block;
+}
+
+.videoMeta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.videoAngle {
+  min-width: 44px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.stateText {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.errorText {
+  font-size: 13px;
+  color: var(--danger);
+}
+
+@media (max-width: 900px) {
+  .body {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    max-height: 280px;
+  }
+}
