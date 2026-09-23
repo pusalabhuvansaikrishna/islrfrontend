@@ -118,7 +118,10 @@ export default function SessionDetailPage() {
   }, [loadData]);
 
   // Quiet refresh of both lists (no loading spinner, so RecorderPanel is NOT
-  // unmounted). Called when the operator switches transcriptions.
+  // unmounted). Called when the operator switches transcriptions, and also
+  // after a take finishes uploading (see onUploadComplete on RecorderPanel
+  // below) so the "done" / "remaining" lists update immediately instead of
+  // only on the next transcription switch.
   const refreshLists = useCallback(async () => {
     if (!session || session.ended_at) return;
     try {
@@ -142,16 +145,24 @@ export default function SessionDetailPage() {
   );
 
   const handleEndSession = useCallback(async () => {
+    // Final confirmation -- ending the session triggers a one-time email
+    // to the CSV/job's requestor (see the backend's end-session endpoint),
+    // so the copy here makes that consequence explicit before the request
+    // fires, on top of the usual "no more uploads / unsaved take" warning.
     const message = recorderBusy
-      ? "End this session?\n\n" +
+      ? "Final confirmation: end this session?\n\n" +
         "It looks like a recording may still be in progress. Anything you " +
         "recorded but haven't uploaded yet will be lost. " +
         "You won't be able to add recordings to this session afterwards, " +
-        "but a new session for the same signer will pick up whatever is still remaining."
-      : "End this session?\n\n" +
+        "but a new session for the same signer will pick up whatever is still remaining.\n\n" +
+        "This will also email the owner who requested this CSV file to let them know " +
+        "the session is complete."
+      : "Final confirmation: end this session?\n\n" +
         "Anything you recorded but haven't uploaded yet will be lost. " +
         "You won't be able to add recordings to this session afterwards, " +
-        "but a new session for the same signer will pick up whatever is still remaining.";
+        "but a new session for the same signer will pick up whatever is still remaining.\n\n" +
+        "This will also email the owner who requested this CSV file to let them know " +
+        "the session is complete.";
 
     const ok = window.confirm(message);
     if (!ok) return;
@@ -225,7 +236,7 @@ export default function SessionDetailPage() {
               title={
                 recorderBusy
                   ? "A recording may still be in progress -- you'll be asked to confirm."
-                  : "Close this session. Remaining transcriptions carry over to the signer's next session."
+                  : "Close this session. Remaining transcriptions carry over to the signer's next session. Emails the CSV requestor."
               }
             >
               {ending ? "Ending…" : "End session"}
@@ -418,6 +429,7 @@ export default function SessionDetailPage() {
               transcription={selectedTranscription}
               onBusyChange={setRecorderBusy}
               disabled={ending}
+              onUploadComplete={refreshLists}
             />
           </main>
         </div>

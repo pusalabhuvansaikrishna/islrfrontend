@@ -9,11 +9,11 @@
 //
 //   - No searchParams/takeId from the URL. The "take id" the agent
 //     records under, and that recordings/uploads are grouped by, is the
-//     currently SELECTED TRANSCRIPTION's id — a session can walk through
+//     currently SELECTED TRANSCRIPTION's id -- a session can walk through
 //     several transcriptions, each recorded separately. See `takeId`
 //     below.
 //   - The teleprompter's BroadcastChannel is keyed by session id (stable
-//     for the page's lifetime), NOT by takeId — so the popup, once
+//     for the page's lifetime), NOT by takeId -- so the popup, once
 //     opened, stays connected across transcription switches instead of
 //     needing to be reopened. Which transcription's text it's showing is
 //     just a "script" message pushed on that same channel.
@@ -47,8 +47,45 @@
 //     0, 1, 2... attempts, and are labelled "Import N" in the UI.
 //   - The "View Recordings (N)" button count now EXCLUDES discarded
 //     attempts and attempts whose clips were all forgotten
-//     (`activeAttemptCount`). Previously it counted every attempt that
-//     had ever been recorded, so discarding a take never changed it.
+//     (`activeAttemptCount`), and further breaks that down against how
+//     many of those are still awaiting upload (`pendingUploadCount`) --
+//     see the FIX notes below.
+//
+// ---------------------------------------------------------------------
+// FIX (this revision): "already uploaded" bleeding across transcriptions
+// ---------------------------------------------------------------------
+// The agent numbers attempts (0, 1, 2, ...) starting from zero for EACH
+// takeId (see attemptAnglesByTake etc. below, all keyed by takeId).  The
+// Recordings modal, however, previously tracked which attempt indexes
+// had been uploaded in a single `useState<Set<number>>` local to
+// RecordingsModal -- NOT scoped by transcription. Because RecordingsModal
+// itself is never unmounted when you switch transcriptions (only its
+// props change), that set kept accumulating indexes across every
+// transcription you visited. So after uploading transcription A's first
+// take (attempt index 0), switching to transcription B and recording a
+// brand new take (which also gets attempt index 0, since indexing
+// restarts per takeId) would immediately show as "already uploaded",
+// and the "View Recordings" badge on the panel never reflected the new
+// take because the stale, cross-transcription set was being consulted.
+//
+// The fix: uploaded-attempt bookkeeping now lives in RecorderPanel,
+// keyed by takeId (`uploadedAttemptsByTake`), the same pattern already
+// used for attemptValidityByTake / discardedByTake / forgottenClipsByTake.
+// RecordingsModal receives the current transcription's slice as a plain
+// prop (`uploadedAttempts`) instead of owning its own state, so switching
+// transcriptions can never leak one take's upload status onto another's.
+// The modal's other transient, in-progress-upload state (phase, queue,
+// progress, error) is reset whenever the transcription id it's showing
+// changes, so a stale "success"/"uploading" screen from a previous
+// transcription can't reappear for a new one either.
+//
+// A second, related fix: uploading used to leave the *session page's*
+// pending/worked lists (and therefore the "Done in this session" count)
+// stale until the operator manually switched transcriptions, because
+// nothing told the parent page to refetch after an upload finished. A
+// new `onUploadComplete` callback fires once a full upload run succeeds,
+// so the session page can refresh those lists immediately.
+// ---------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./RecorderPanel.module.css";
@@ -141,7 +178,7 @@ function saveAngleHistory(history: Record<string, ViewAngle>) {
 }
 
 // ---------------------------------------------------------------------
-// Recordings modal (unchanged in spirit from the original) — grid view
+// Recordings modal (unchanged in spirit from the original) -- grid view
 // of every downloaded clip, synced multi-cam playback, per-attempt tabs.
 // ---------------------------------------------------------------------
 
@@ -762,7 +799,9 @@ function RecordingsModal({
   onSetDiscarded,
   forgottenClips,
   onForgetClip,
+  uploadedAttempts,
   onAttemptUploaded,
+  onUploadComplete,
   disabled,
 }: {
   open: boolean;
@@ -805,10 +844,22 @@ function RecordingsModal({
   // never recorded, even after the camera reconnects.
   forgottenClips: Record<number, Record<string, boolean>>;
   onForgetClip: (attemptIndex: number, cameraId: string, forgotten: boolean) => void;
+  // Which attempt indexes (for the CURRENT transcriptionId only) have
+  // already been successfully uploaded. Owned by the parent
+  // (RecorderPanel), keyed by takeId, and passed down as a plain slice --
+  // this is what keeps upload status from leaking between transcriptions
+  // (see the FIX note at the top of the file).
+  uploadedAttempts: Record<number, boolean>;
   // Fires after an attempt is successfully uploaded. RecorderPanel uses
-  // this so the next imported video starts a fresh imported take instead
-  // of being merged into one that's already on the backend.
+  // this to (a) record the attempt as uploaded, keyed by takeId, and (b)
+  // let an imported video start a fresh imported take instead of being
+  // merged into one that's already on the backend.
   onAttemptUploaded?: (attemptIndex: number) => void;
+  // Fires once an entire upload run (every queued attempt) finishes
+  // successfully, so the session page can refresh its pending/worked
+  // lists right away instead of waiting for the next transcription
+  // switch.
+  onUploadComplete?: () => void;
   // True while the parent session is being ended. Blocks kicking off a
   // brand-new upload run (so nothing new starts sending right as the
   // session closes underneath the operator), but leaves review, marking,
@@ -879,20 +930,39 @@ function RecordingsModal({
   // Position within uploadQueue currently being sent, for the "Recording
   // X of N" status line.
   const [uploadQueuePos, setUploadQueuePos] = useState(0);
-  const [uploadedAttemptIndexes, setUploadedAttemptIndexes] = useState<Set<number>>(new Set());
   const uploadCancelRef = useRef<(() => void) | null>(null);
   const uploadAbortedRef = useRef(false);
+
+  // FIX: this modal instance is reused across every transcription (only
+  // its props change, it's never remounted) -- so any transient,
+  // in-progress-upload UI state left over from a PREVIOUS transcription
+  // (e.g. still sitting on the "success"/"Upload again" screen, or a
+  // half-built queue) must be cleared out whenever the transcription it's
+  // showing changes. Per-take upload *completion* is intentionally NOT
+  // reset here -- that lives in the parent as `uploadedAttempts`, keyed
+  // by takeId, so re-visiting an already-fully-uploaded transcription
+  // still correctly shows it as done instead of re-offering upload.
+  useEffect(() => {
+    uploadAbortedRef.current = true;
+    uploadCancelRef.current?.();
+    uploadCancelRef.current = null;
+    setUploadPhase("idle");
+    setUploadQueue([]);
+    setUploadQueuePos(0);
+    setUploadProgress(0);
+    setUploadError(null);
+  }, [transcriptionId]);
 
   // --- Live refs -----------------------------------------------------
   // handleConfirmUpload's for-loop is ONE continuous async function
   // call: once it starts, it's a fixed closure over whatever
-  // clipsByIndex/discardedAttempts/attemptValidity WERE at that instant.
-  // A later Discard/Forget/Valid-Invalid click updates React state and
-  // re-renders (so the UI visibly changes), but that's a NEW render's
-  // closure -- the already-running loop never sees it, so a take you
-  // just discarded could still get uploaded right in front of you. To
-  // fix that, the loop reads these refs (always current, updated every
-  // render) instead of the closed-over props/derived values, so a
+  // clipsByIndex/discardedAttempts/attemptValidity/uploadedAttempts WERE
+  // at that instant. A later Discard/Forget/Valid-Invalid click updates
+  // React state and re-renders (so the UI visibly changes), but that's a
+  // NEW render's closure -- the already-running loop never sees it, so a
+  // take you just discarded could still get uploaded right in front of
+  // you. To fix that, the loop reads these refs (always current, updated
+  // every render) instead of the closed-over props/derived values, so a
   // discard/forget/re-mark on a not-yet-processed attempt actually
   // takes effect before its turn comes up.
   const clipsByIndexRef = useRef(clipsByIndex);
@@ -909,6 +979,11 @@ function RecordingsModal({
   useEffect(() => {
     attemptValidityRef.current = attemptValidity;
   }, [attemptValidity]);
+
+  const uploadedAttemptsRef = useRef(uploadedAttempts);
+  useEffect(() => {
+    uploadedAttemptsRef.current = uploadedAttempts;
+  }, [uploadedAttempts]);
   // ---------------------------------------------------------------------
 
   const angleForClip = useCallback(
@@ -949,8 +1024,8 @@ function RecordingsModal({
     [indices, clipsByIndex, isDiscarded]
   );
   const notYetUploadedIndices = useMemo(
-    () => uploadableIndices.filter((idx) => !uploadedAttemptIndexes.has(idx)),
-    [uploadableIndices, uploadedAttemptIndexes]
+    () => uploadableIndices.filter((idx) => !uploadedAttempts[idx]),
+    [uploadableIndices, uploadedAttempts]
   );
 
   const handleUploadAllClick = useCallback(() => {
@@ -993,8 +1068,9 @@ function RecordingsModal({
       setUploadQueuePos(i);
 
       // Already uploaded (e.g. a retry resuming past an earlier success) --
-      // skip straight to the next attempt.
-      if (uploadedAttemptIndexes.has(attemptIndex)) continue;
+      // skip straight to the next attempt. Read from the live ref, not
+      // the closed-over prop, in case it changed after this loop started.
+      if (uploadedAttemptsRef.current[attemptIndex]) continue;
 
       // Discarded -- check the LIVE ref, not the closed-over prop, so
       // discarding a not-yet-started attempt while this loop is already
@@ -1036,11 +1112,9 @@ function RecordingsModal({
         );
         if (uploadAbortedRef.current) return;
 
-        setUploadedAttemptIndexes((prev) => {
-          const next = new Set(prev);
-          next.add(attemptIndex);
-          return next;
-        });
+        // Tell the parent this attempt is uploaded -- it owns the
+        // per-takeId bookkeeping (uploadedAttempts is just a read-only
+        // slice passed back down to us).
         onAttemptUploaded?.(attemptIndex);
       } catch (err) {
         if (uploadAbortedRef.current) return;
@@ -1060,23 +1134,21 @@ function RecordingsModal({
 
     setUploadProgress(100);
     setUploadPhase("success");
+    onUploadComplete?.();
   }, [
     uploadQueue,
     transcriptionId,
     jobId,
     sessionId,
-    clipsByIndex,
     angleForClip,
     cameraForClip,
-    isValidForAttempt,
-    uploadedAttemptIndexes,
     onAttemptUploaded,
+    onUploadComplete,
   ]);
 
   if (!open) return null;
 
   const activeClips = activeIndex !== null ? clipsByIndex.get(activeIndex) ?? [] : [];
-  const activePlayableClips = activeClips.filter((c) => !!c.url);
 
   const confirmClips = uploadQueue
     .filter((attemptIndex) => !isDiscarded(attemptIndex))
@@ -1126,7 +1198,7 @@ function RecordingsModal({
                     const forgottenCount = Object.keys(forgottenClips[idx] ?? {}).length;
                     const validHere = isValidForAttempt(idx);
                     const discardedHere = isDiscarded(idx);
-                    const uploadedHere = uploadedAttemptIndexes.has(idx);
+                    const uploadedHere = !!uploadedAttempts[idx];
                     return (
                       <div
                         key={idx}
@@ -1238,9 +1310,9 @@ function RecordingsModal({
                     <button
                       type="button"
                       style={modalStyles.confirmCancelBtn}
-                      disabled={uploadedAttemptIndexes.has(activeIndex)}
+                      disabled={!!uploadedAttempts[activeIndex]}
                       title={
-                        uploadedAttemptIndexes.has(activeIndex)
+                        uploadedAttempts[activeIndex]
                           ? "Already uploaded -- can't discard"
                           : "Discard this recording -- it won't be uploaded"
                       }
@@ -1400,6 +1472,11 @@ interface RecorderPanelProps {
   // the session actually finishes ending, the page swaps to the
   // read-only history view and this panel unmounts entirely.
   disabled?: boolean;
+  // Fires once a full upload run for the currently selected
+  // transcription finishes successfully, so the session page can
+  // refresh its pending/"done in this session" lists immediately
+  // instead of only on the next transcription switch.
+  onUploadComplete?: () => void;
 }
 
 export default function RecorderPanel({
@@ -1408,6 +1485,7 @@ export default function RecorderPanel({
   transcription,
   onBusyChange,
   disabled = false,
+  onUploadComplete,
 }: RecorderPanelProps) {
   const {
     status: agentStatus,
@@ -1771,6 +1849,32 @@ export default function RecorderPanel({
     [takeId]
   );
 
+  // ---- Per-attempt "uploaded" flag, keyed by takeId then attempt index --
+  // same shape/keying as attemptValidityByTake/discardedByTake. This is
+  // the FIX for uploads "bleeding" between transcriptions: it used to
+  // live as a bare `useState<Set<number>>` inside RecordingsModal, which
+  // is never remounted when the selected transcription changes, so a
+  // later transcription's attempt 0 could show as "already uploaded"
+  // just because an earlier transcription's attempt 0 had been. Keying
+  // it here by takeId (like every other per-attempt marking) means each
+  // transcription only ever sees its own uploaded attempts. ----
+  const [uploadedAttemptsByTake, setUploadedAttemptsByTake] = useState<
+    Record<string, Record<number, boolean>>
+  >({});
+
+  const uploadedAttempts = takeId ? uploadedAttemptsByTake[takeId] ?? {} : {};
+
+  const handleMarkUploaded = useCallback(
+    (attemptIndex: number) => {
+      if (!takeId) return;
+      setUploadedAttemptsByTake((prev) => ({
+        ...prev,
+        [takeId]: { ...(prev[takeId] ?? {}), [attemptIndex]: true },
+      }));
+    },
+    [takeId]
+  );
+
   const resetPrompterToStart = useCallback(() => {
     postToPrompter({ type: "phase", phase: "idle" });
     postToPrompter({ type: "control", action: "jumpToStart" });
@@ -1937,11 +2041,17 @@ export default function RecorderPanel({
     [takeId, disabled]
   );
 
+  // Fires once RecordingsModal confirms an attempt uploaded successfully.
+  // Marks it uploaded in the per-takeId map above (fixing the
+  // cross-transcription leak) AND, for manual imports specifically, marks
+  // it so the next imported video for this angle starts a fresh take
+  // rather than being merged into one already on the backend.
   const handleAttemptUploaded = useCallback(
     (attemptIndex: number) => {
       if (takeId) uploadedManualRef.current.add(`${takeId}:${attemptIndex}`);
+      handleMarkUploaded(attemptIndex);
     },
-    [takeId]
+    [takeId, handleMarkUploaded]
   );
 
   const manualForTake = takeId ? manualByTake[takeId] ?? {} : {};
@@ -1994,7 +2104,26 @@ export default function RecorderPanel({
     return live.size;
   }, [mergedPreviews, discardedAttempts, forgottenClips]);
 
+  // Of the active attempts above, how many are still awaiting upload.
+  // This is what makes the button reflect "done" once every active
+  // recording for this transcription has actually been uploaded --
+  // previously the badge only ever showed activeAttemptCount, so it kept
+  // showing e.g. "(5)" even after all 5 had been successfully uploaded.
+  const pendingUploadCount = useMemo(() => {
+    const live = new Set<number>();
+    Object.entries(mergedPreviews ?? {}).forEach(([cameraId, segs]) => {
+      segs.forEach((seg) => {
+        if (discardedAttempts[seg.index]) return;
+        if (forgottenClips[seg.index]?.[cameraId]) return;
+        if (uploadedAttempts[seg.index]) return;
+        live.add(seg.index);
+      });
+    });
+    return live.size;
+  }, [mergedPreviews, discardedAttempts, forgottenClips, uploadedAttempts]);
+
   const discardedAttemptCount = Math.max(0, totalAttemptCount - activeAttemptCount);
+  const allActiveUploaded = activeAttemptCount > 0 && pendingUploadCount === 0;
 
   // Applied to the panel's interactive content (but NOT to RecordingsModal,
   // which is `position: fixed` -- a CSS `filter` on an ancestor turns it
@@ -2248,7 +2377,11 @@ export default function RecorderPanel({
           ■ Stop
         </button>
         {/* Stays clickable even when the active count drops to 0, so a
-            discarded take can still be opened and restored. */}
+            discarded take can still be opened and restored. Badge now
+            shows how many active recordings still need uploading, and a
+            checkmark once every active recording has been uploaded --
+            instead of always showing the raw active count regardless of
+            upload status. */}
         <button
           type="button"
           className={styles.openPrompterBtn}
@@ -2258,11 +2391,18 @@ export default function RecorderPanel({
             !takeResult && manualAttemptCount === 0
               ? "Record or add a video for this transcription first"
               : discardedAttemptCount > 0
-              ? `${activeAttemptCount} active, ${discardedAttemptCount} discarded -- open to review, restore, or upload`
-              : `Review ${activeAttemptCount} recording${activeAttemptCount === 1 ? "" : "s"}, mark Valid/Invalid, and upload`
+              ? `${activeAttemptCount} active (${pendingUploadCount} pending upload), ${discardedAttemptCount} discarded -- open to review, restore, or upload`
+              : allActiveUploaded
+              ? `All ${activeAttemptCount} recording${activeAttemptCount === 1 ? "" : "s"} uploaded -- open to review or upload again`
+              : `Review ${activeAttemptCount} recording${activeAttemptCount === 1 ? "" : "s"} (${pendingUploadCount} pending upload), mark Valid/Invalid, and upload`
           }
         >
-          🎬 View Recordings{totalAttemptCount > 0 ? ` (${activeAttemptCount})` : ""}
+          🎬 View Recordings
+          {totalAttemptCount > 0
+            ? allActiveUploaded
+              ? ` (${activeAttemptCount} ✓)`
+              : ` (${pendingUploadCount} pending)`
+            : ""}
         </button>
         {countdownValue !== null && (
           <span className={styles.countdownLabel}>Starting in {countdownValue}…</span>
@@ -2292,7 +2432,9 @@ export default function RecorderPanel({
         onSetDiscarded={handleSetDiscarded}
         forgottenClips={forgottenClips}
         onForgetClip={handleForgetClip}
+        uploadedAttempts={uploadedAttempts}
         onAttemptUploaded={handleAttemptUploaded}
+        onUploadComplete={onUploadComplete}
         disabled={disabled}
       />
 

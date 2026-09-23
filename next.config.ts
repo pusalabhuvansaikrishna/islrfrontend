@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   typescript: {
     // TEMPORARY: Next 16.3.5's auto-generated route types
     // (.next/dev/types/routes.d.ts) are failing to parse on this
