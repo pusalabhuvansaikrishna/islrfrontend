@@ -2,22 +2,16 @@
 
 // Location: src/app/teleprompter/[job_id]/[session_id]/page.tsx
 //
-// Full scrolling teleprompter, upgraded from the earlier simple
-// "show selected transcription" version to match the original recorder
-// project's popup exactly: phase-synced with record/stop, adjustable
-// font size + scroll speed (mirrored from RecorderPanel), and a
-// self-reported windowInfo so the session page's mini preview can mirror
-// this window's real size/font proportionally.
-//
-// Still lives OUTSIDE src/app/dashboard/ as a top-level route, so it
-// doesn't inherit dashboard/layout.tsx's sidebar + header — see the
-// earlier version's comment for the full reasoning, which still applies.
-//
-// Where this differs from the original recorder's teleprompter page:
-// the "script" text it receives is pushed by RecorderPanel from
-// whichever transcription is currently selected in the session sidebar
-// (transcription.text, already loaded — no separate script fetch here
-// or in the parent), rather than being fetched by this page itself.
+// UPDATE: handles `videoPreview` messages from the Recordings modal.
+//   - "show":  a full-window <video> is laid over the script until a
+//              "clear" (or another "show") arrives.
+//   - "clear": the overlay is removed and the script is back exactly
+//              where it was.
+// The script area stays MOUNTED underneath (covered, not unmounted or
+// display:none) so its scroll position and line refs survive the trip.
+// A new countdown/recording phase also clears the preview, so the
+// presenter never starts a take while looking at an old clip.
+// Overlay styling lives in page.module.css (.videoPreview* classes).
 
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -35,8 +29,7 @@ const MAX_FONT_SIZE = 72;
 
 // The font-size slider on the session page (24-72px) is tuned against
 // this window size (the popup's default open dimensions). When this
-// window ends up a different size than that — e.g. dragged to another
-// screen and resized/maximized there — the rendered font is scaled
+// window ends up a different size than that, the rendered font is scaled
 // proportionally so the script still fills the space sensibly.
 const REFERENCE_WIDTH = 900;
 const REFERENCE_HEIGHT = 600;
@@ -47,6 +40,8 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+type VideoPreview = { url: string; label?: string };
+
 function TeleprompterPageInner() {
   const params = useParams<{ job_id: string; session_id: string }>();
   const sessionId = params.session_id;
@@ -56,6 +51,11 @@ function TeleprompterPageInner() {
   const [script, setScript] = useState<string>("Waiting for a script…");
   const [speed, setSpeed] = useState(DEFAULT_SCROLL_PIXELS_PER_SECOND);
   const [baseFontSize, setBaseFontSize] = useState(DEFAULT_FONT_SIZE);
+
+  // The clip currently shown instead of the script (null = show script).
+  const [videoPreview, setVideoPreview] = useState<VideoPreview | null>(null);
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
   // This window's own current viewport size. Updated on mount and on every
   // resize, which in most browsers also fires when the window is moved to
@@ -72,9 +72,14 @@ function TeleprompterPageInner() {
       setPhase(msg.phase);
       if (msg.phase === "countdown") setCountdownValue(msg.countdownValue ?? null);
       if (msg.phase === "recording") setCountdownValue(null);
-      // "stopped" intentionally does NOT reset scroll position — it just
+      // A new take is starting -- get the old clip out of the way.
+      if (msg.phase === "countdown" || msg.phase === "recording") {
+        setVideoPreview(null);
+        setVideoError(null);
+      }
+      // "stopped" intentionally does NOT reset scroll position -- it just
       // stops the animation loop below, freezing wherever it was. Use the
-      // explicit "jumpToStart" control message below to actually reset.
+      // explicit "jumpToStart" control message to actually reset.
     } else if (msg.type === "script") {
       setScript(msg.text);
     } else if (msg.type === "control") {
@@ -83,18 +88,29 @@ function TeleprompterPageInner() {
       if (msg.action === "jumpToStart" && scrollRef.current) {
         scrollRef.current.scrollTop = 0;
         // Tell the parent immediately so its mini preview snaps back to
-        // the top too, instead of waiting for the next animation frame
-        // (which won't come until phase is "recording" again).
-        post({ type: "scrollStatus", lineIndex: 0, totalLines: scriptLinesRef.current.length, scrollFraction: 0 });
+        // the top too.
+        post({
+          type: "scrollStatus",
+          lineIndex: 0,
+          totalLines: scriptLinesRef.current.length,
+          scrollFraction: 0,
+        });
+      }
+    } else if (msg.type === "videoPreview") {
+      if (msg.action === "show") {
+        setVideoError(null);
+        setVideoPreview({ url: msg.url, label: msg.label });
+      } else {
+        setVideoPreview(null);
+        setVideoError(null);
       }
     }
   };
 
   const post = useTeleprompterChannel(sessionId, handleMessage);
 
-  // Announce we're up and ready — the session page responds with the
-  // currently selected transcription's script, font size, and speed
-  // (see RecorderPanel).
+  // Announce we're up and ready -- the session page responds with the
+  // currently selected transcription's script, font size, and speed.
   useEffect(() => {
     post({ type: "windowReady" });
   }, [post]);
@@ -109,8 +125,6 @@ function TeleprompterPageInner() {
     return () => window.removeEventListener("resize", updateSize);
   }, []);
 
-  // How far this window's actual size is from the reference size the font
-  // slider was designed around.
   const scaleFactor = clamp(
     Math.min(windowSize.width / REFERENCE_WIDTH, windowSize.height / REFERENCE_HEIGHT),
     MIN_SCALE,
@@ -123,8 +137,7 @@ function TeleprompterPageInner() {
   );
 
   // Tell the session page our real size + the font size we're actually
-  // rendering at, so its live monitor can mirror this exactly instead of
-  // guessing with a fixed scale-down.
+  // rendering at, so its live monitor can mirror this exactly.
   useEffect(() => {
     post({
       type: "windowInfo",
@@ -134,18 +147,27 @@ function TeleprompterPageInner() {
     });
   }, [windowSize, effectiveFontSize, post]);
 
+  // Start playback whenever a new clip is shown. Browsers can block
+  // autoplay-with-sound in a window the user hasn't clicked in yet, so on
+  // failure fall back to muted autoplay (the controls let them unmute).
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!videoPreview || !el) return;
+    el.play().catch(() => {
+      el.muted = true;
+      el.play().catch(() => {});
+    });
+  }, [videoPreview]);
+
   const scriptLines = script.split("\n");
-  // Kept in a ref too so the "jumpToStart" handler above (defined before
-  // scriptLines is computed each render) always reads the latest value
-  // without needing to be redeclared as a dependency of anything.
+  // Kept in a ref too so the "jumpToStart" handler above always reads the
+  // latest value without being a dependency of anything.
   const scriptLinesRef = useRef(scriptLines);
   scriptLinesRef.current = scriptLines;
 
   // Finds the topmost line already scrolled to (or past) the top of the
-  // viewport, using each line's *real* offsetTop rather than assuming
-  // uniform line height. This stays accurate regardless of how the text
-  // wraps — including right after a resize changes the wrap points, which
-  // is exactly when the old average-height math used to fall apart.
+  // viewport, using each line's real offsetTop rather than assuming
+  // uniform line height.
   const getCurrentLineIndex = useCallback((scrollTop: number) => {
     const lines = lineRefs.current;
     let lo = 0;
@@ -166,9 +188,7 @@ function TeleprompterPageInner() {
   }, []);
 
   // Auto-scroll only while phase === "recording"; paused (not reset) the
-  // instant it isn't. Re-reads `speed` on every render via the effect's
-  // dependency array, so changing the slider on the session page takes
-  // effect immediately without restarting from the top.
+  // instant it isn't.
   useEffect(() => {
     if (phase !== "recording") {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -189,10 +209,8 @@ function TeleprompterPageInner() {
         const maxScroll = Math.max(1, el.scrollHeight - el.clientHeight);
         const scrollFraction = clamp(el.scrollTop / maxScroll, 0, 1);
 
-        // Report on every frame (not just when the line index changes) so
-        // mirrors like the session page's mini preview can scroll smoothly
-        // and continuously in real time, rather than snapping forward only
-        // at line boundaries.
+        // Report every frame so the session page's mini preview scrolls
+        // smoothly rather than snapping at line boundaries.
         post({
           type: "scrollStatus",
           lineIndex,
@@ -217,6 +235,7 @@ function TeleprompterPageInner() {
           <span className={styles.countdownNumber}>{countdownValue}</span>
         </div>
       )}
+
       <div ref={scrollRef} className={styles.scrollArea}>
         <div className={styles.scriptText} style={{ fontSize: `${effectiveFontSize}px` }}>
           {scriptLines.map((line, i) => (
@@ -233,6 +252,27 @@ function TeleprompterPageInner() {
         </div>
       </div>
       <div className={styles.statusBar}>{phase}</div>
+
+      {/* Recorded-clip overlay. Covers the script instead of replacing it,
+          so the script's scroll position is intact when it's cleared. */}
+      {videoPreview && (
+        <div className={styles.videoPreviewWrap}>
+          <video
+            key={videoPreview.url}
+            ref={videoRef}
+            src={videoPreview.url}
+            className={styles.videoPreviewPlayer}
+            controls
+            autoPlay
+            playsInline
+            onError={() => setVideoError("Couldn't load this video in the teleprompter window.")}
+          />
+          {videoPreview.label && (
+            <span className={styles.videoPreviewLabel}>📺 {videoPreview.label}</span>
+          )}
+          {videoError && <span className={styles.videoPreviewError}>⚠ {videoError}</span>}
+        </div>
+      )}
     </div>
   );
 }

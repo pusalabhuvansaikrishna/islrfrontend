@@ -1,7 +1,7 @@
 /* page.module.css — ported from the recorder project's teleprompter
-   popup CSS, unchanged. Deliberately hardcoded dark colors rather than
-   this project's --bg/--text theme tokens: it's a fixed-purpose
-   presenter display, not a themed part of the dashboard. */
+   popup CSS. Deliberately hardcoded dark colors rather than this
+   project's --bg/--text theme tokens: it's a fixed-purpose presenter
+   display, not a themed part of the dashboard. */
 
 .page {
   position: relative;
@@ -69,4 +69,50 @@
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.35);
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Recorded-clip overlay. Covers the script instead of replacing it, so the
+   script's scroll position is intact when the preview is cleared. Sits below
+   the countdown overlay (z-index 10), though the page also clears the
+   preview when a countdown starts. */
+.videoPreviewWrap {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Fill the whole window and letterbox, rather than max-width/max-height,
+   which would leave a small clip at its native size. */
+.videoPreviewPlayer {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.videoPreviewLabel {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.videoPreviewError {
+  position: absolute;
+  bottom: 24px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: rgba(255, 107, 107, 0.9);
+  color: #fff;
+  font-size: 13px;
 }

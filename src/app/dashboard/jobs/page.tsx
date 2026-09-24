@@ -133,7 +133,7 @@ export default function JobsPage() {
           </div>
 
           <button type="button" className={styles.createButton} onClick={() => setModalOpen(true)}>
-            + Create dataset
+            + Create Job
           </button>
         </div>
       </div>

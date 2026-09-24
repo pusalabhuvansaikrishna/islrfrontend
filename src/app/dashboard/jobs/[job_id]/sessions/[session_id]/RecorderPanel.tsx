@@ -85,6 +85,20 @@
 // nothing told the parent page to refetch after an upload finished. A
 // new `onUploadComplete` callback fires once a full upload run succeeds,
 // so the session page can refresh those lists immediately.
+//
+// ---------------------------------------------------------------------
+// UPDATE: "show on teleprompter" for a recorded/imported clip
+// ---------------------------------------------------------------------
+// Each camera tile inside the Recordings modal now has a button that
+// pushes that clip onto the teleprompter window (via the same
+// BroadcastChannel already used for script/phase/control messages) in
+// place of the scrolling script, so the presenter (or anyone watching
+// the teleprompter display) can review the take itself rather than the
+// text. Clicking it again -- or the modal being closed, or the
+// transcription being switched -- clears it and hands the teleprompter
+// back to the script. See `handleToggleTeleprompter` and the
+// `postToPrompter` prop threaded into RecordingsModal below, and the
+// `videoPreview` message type in useTeleprompterChannel.ts.
 // ---------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -374,6 +388,9 @@ const modalStyles: Record<string, React.CSSProperties> = {
     padding: "0.1rem 0.3rem",
     lineHeight: 1,
   },
+  teleprompterToggleBtnActive: {
+    color: "#5ec2ff",
+  },
   uploadBtn: {
     background: "#2f6fed",
     color: "#fff",
@@ -556,6 +573,8 @@ function SyncedClipGrid({
   clips,
   onForgetClip,
   disableForget,
+  onToggleTeleprompter,
+  teleprompterActiveKey,
 }: {
   clips: RecordingClip[];
   // Optional so SyncedClipGrid still works standalone. When provided,
@@ -569,6 +588,14 @@ function SyncedClipGrid({
   // (not hidden, so it's still clear it exists) rather than silently
   // doing nothing.
   disableForget?: boolean;
+  // Optional so SyncedClipGrid still works standalone. When provided,
+  // each playable tile gets a "show on teleprompter" toggle that pushes
+  // (or pulls back) this clip on the teleprompter window in place of
+  // the script.
+  onToggleTeleprompter?: (clip: RecordingClip) => void;
+  // The clip.key currently being shown on the teleprompter, if any --
+  // used to render that one tile's toggle button as "active"/"cancel".
+  teleprompterActiveKey?: string | null;
 }) {
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const leaderKeyRef = useRef<string | null>(null);
@@ -672,6 +699,7 @@ function SyncedClipGrid({
       <div style={modalStyles.multiGrid}>
         {clips.map((clip) => {
           const isMaximized = clip.key === maximizedKey;
+          const isOnTeleprompter = clip.key === teleprompterActiveKey;
           return (
           <div
             key={clip.key}
@@ -728,6 +756,28 @@ function SyncedClipGrid({
                     >
                       {clip.key === audibleKey ? "🔊" : "🔇"}
                     </button>
+                    {onToggleTeleprompter && (
+                      <button
+                        type="button"
+                        style={{
+                          ...modalStyles.audioToggleBtn,
+                          ...(isOnTeleprompter ? modalStyles.teleprompterToggleBtnActive : {}),
+                        }}
+                        onClick={() => onToggleTeleprompter(clip)}
+                        title={
+                          isOnTeleprompter
+                            ? "Stop showing this on the teleprompter -- go back to the script"
+                            : "Show this recording on the teleprompter window instead of the script"
+                        }
+                        aria-label={
+                          isOnTeleprompter
+                            ? "Stop showing on teleprompter"
+                            : "Show on teleprompter"
+                        }
+                      >
+                        {isOnTeleprompter ? "✕📺" : "📺"}
+                      </button>
+                    )}
                   </>
                 )}
                 {onForgetClip && (
@@ -803,6 +853,7 @@ function RecordingsModal({
   onAttemptUploaded,
   onUploadComplete,
   disabled,
+  postToPrompter,
 }: {
   open: boolean;
   onClose: () => void;
@@ -866,6 +917,11 @@ function RecordingsModal({
   // discarding, and an already-in-flight upload alone -- there's no
   // reason to strand a transfer that's already going.
   disabled?: boolean;
+  // Sends a message on the session's teleprompter BroadcastChannel.
+  // Used here only for `videoPreview` show/clear -- every other message
+  // type (script, phase, font/speed control) is driven by RecorderPanel
+  // itself, not from inside this modal.
+  postToPrompter: (msg: PrompterMessage) => void;
 }) {
   const clipsByIndex = useMemo(() => {
     const map = new Map<number, RecordingClip[]>();
@@ -933,6 +989,26 @@ function RecordingsModal({
   const uploadCancelRef = useRef<(() => void) | null>(null);
   const uploadAbortedRef = useRef(false);
 
+  // Which clip (if any) is currently being shown on the teleprompter
+  // window in place of its script. Purely local UI state -- the
+  // teleprompter's own preview state is driven entirely by the
+  // `videoPreview` messages posted below, never read back from anywhere.
+  const [teleprompterClipKey, setTeleprompterClipKey] = useState<string | null>(null);
+
+  const handleToggleTeleprompter = useCallback(
+    (clip: RecordingClip) => {
+      if (teleprompterClipKey === clip.key) {
+        postToPrompter({ type: "videoPreview", action: "clear" });
+        setTeleprompterClipKey(null);
+        return;
+      }
+      if (!clip.url) return;
+      postToPrompter({ type: "videoPreview", action: "show", url: clip.url, label: clip.cameraName });
+      setTeleprompterClipKey(clip.key);
+    },
+    [teleprompterClipKey, postToPrompter]
+  );
+
   // FIX: this modal instance is reused across every transcription (only
   // its props change, it's never remounted) -- so any transient,
   // in-progress-upload UI state left over from a PREVIOUS transcription
@@ -942,6 +1018,11 @@ function RecordingsModal({
   // reset here -- that lives in the parent as `uploadedAttempts`, keyed
   // by takeId, so re-visiting an already-fully-uploaded transcription
   // still correctly shows it as done instead of re-offering upload.
+  //
+  // Also clears any teleprompter video preview -- it belongs to the
+  // transcription we're leaving, and the presenter shouldn't keep
+  // looking at transcription A's clip while transcription B is now
+  // selected.
   useEffect(() => {
     uploadAbortedRef.current = true;
     uploadCancelRef.current?.();
@@ -951,7 +1032,21 @@ function RecordingsModal({
     setUploadQueuePos(0);
     setUploadProgress(0);
     setUploadError(null);
+    postToPrompter({ type: "videoPreview", action: "clear" });
+    setTeleprompterClipKey(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transcriptionId]);
+
+  // Closing the modal also hands the teleprompter back to the script --
+  // there's no view left in which to point at "this clip" once the
+  // modal showing it is gone.
+  useEffect(() => {
+    if (!open && teleprompterClipKey) {
+      postToPrompter({ type: "videoPreview", action: "clear" });
+      setTeleprompterClipKey(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // --- Live refs -----------------------------------------------------
   // handleConfirmUpload's for-loop is ONE continuous async function
@@ -1265,6 +1360,8 @@ function RecordingsModal({
                     onForgetClip(attemptIndex, cameraId, true)
                   }
                   disableForget={isUploading && activeIndex === currentUploadAttempt}
+                  onToggleTeleprompter={handleToggleTeleprompter}
+                  teleprompterActiveKey={teleprompterClipKey}
                 />
               )}
 
@@ -2436,6 +2533,7 @@ export default function RecorderPanel({
         onAttemptUploaded={handleAttemptUploaded}
         onUploadComplete={onUploadComplete}
         disabled={disabled}
+        postToPrompter={postToPrompter}
       />
 
       <div style={disabledOverlayStyle}>

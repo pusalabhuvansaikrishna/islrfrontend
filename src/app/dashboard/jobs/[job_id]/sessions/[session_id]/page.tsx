@@ -26,6 +26,36 @@ function formatDuration(seconds: number | null | undefined): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+// FIX: a transcription this signer has already recorded a VALID take for
+// (in this session -- "worked" only ever covers this session's own
+// recordings) was staying visible in the "Transcriptions to record"
+// sidebar list after being recorded. It got a fresh, updated coverage
+// badge and sorted differently, but never actually disappeared, because
+// nothing on the frontend ever removed it from `pending` -- the sidebar
+// just renders whatever `pending` contains. The expectation is that once
+// THIS signer has a valid take for a line, it's done for them (even if
+// `required_signer_count` > 1 and other signers still owe a take on the
+// same line -- that's a different signer's pending list, not this one's).
+//
+// The authoritative fix belongs in listSignerPendingTranscriptions on the
+// backend (it should already be excluding anything this signer has a
+// valid take for). This filter is a client-side safety net on top of
+// that: it cross-references whatever the server just returned as
+// "pending" against this session's own "worked" results and drops any
+// transcription that already has a valid take, so the list is correct
+// immediately after an upload even if the server-side exclusion has its
+// own bug or lag.
+function excludeValidlyWorked(
+  pendingItems: TranscriptionRow[],
+  workedItems: SessionWorkedTranscription[]
+): TranscriptionRow[] {
+  const validIds = new Set(
+    workedItems.filter((w) => w.has_valid_take).map((w) => w.transcription_id)
+  );
+  if (validIds.size === 0) return pendingItems;
+  return pendingItems.filter((t) => !validIds.has(t.transcription_id));
+}
+
 export default function SessionDetailPage() {
   const params = useParams<{ job_id: string; session_id: string }>();
   const jobId = params.job_id;
@@ -93,12 +123,16 @@ export default function SessionDetailPage() {
             listSignerPendingTranscriptions(jobId, sessionDetail.signer_id, { limit: 100 }),
             listSessionTranscriptions(jobId, sessionId),
           ]);
-          setPending(pendingResponse.items);
+          // See excludeValidlyWorked above -- drops anything this signer
+          // already has a valid take for, even if the server's own
+          // "pending" list hasn't caught up yet.
+          const filteredPending = excludeValidlyWorked(pendingResponse.items, workedResponse.items);
+          setPending(filteredPending);
           setWorked(workedResponse.items);
           setSelectedTranscriptionId((prev) =>
-            pendingResponse.items.some((t) => t.transcription_id === prev)
+            filteredPending.some((t) => t.transcription_id === prev)
               ? prev
-              : pendingResponse.items[0]?.transcription_id ?? null
+              : filteredPending[0]?.transcription_id ?? null
           );
         }
         return sessionDetail;
@@ -129,8 +163,22 @@ export default function SessionDetailPage() {
         listSignerPendingTranscriptions(jobId, session.signer_id, { limit: 100 }),
         listSessionTranscriptions(jobId, sessionId),
       ]);
-      setPending(pendingResponse.items);
+      // Same safety net as loadData -- a transcription that just got a
+      // valid take uploaded (this call is what onUploadComplete triggers)
+      // must not still show up in "to record" once this resolves.
+      const filteredPending = excludeValidlyWorked(pendingResponse.items, workedResponse.items);
+      setPending(filteredPending);
       setWorked(workedResponse.items);
+      // If the transcription that was selected just got filtered out (e.g.
+      // it now has a valid take from this refresh), fall through to the
+      // next item in the remaining queue instead of leaving RecorderPanel
+      // pointed at a transcription that's no longer in `pending` -- same
+      // rule loadData already applies on initial load / session switch.
+      setSelectedTranscriptionId((prev) =>
+        prev && filteredPending.some((t) => t.transcription_id === prev)
+          ? prev
+          : filteredPending[0]?.transcription_id ?? null
+      );
     } catch {
       // Keep showing the previous lists; the next switch will retry.
     }
