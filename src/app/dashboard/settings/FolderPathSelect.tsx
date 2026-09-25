@@ -21,8 +21,6 @@ interface FolderPathSelectProps {
   onFolderCreated?: (folder: FolderOption) => void;
 }
 
-const CREATE_NEW_VALUE = "__create_new__";
-
 export default function FolderPathSelect({
   label,
   endpoint,
@@ -123,16 +121,13 @@ export default function FolderPathSelect({
   };
 
   const handleChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
+    await savePath(e.target.value);
+  };
 
-    if (value === CREATE_NEW_VALUE) {
-      setCreatingError(null);
-      setNewFolderName("");
-      setCreating(true);
-      return;
-    }
-
-    await savePath(value);
+  const handleOpenCreate = () => {
+    setCreatingError(null);
+    setNewFolderName("");
+    setCreating(true);
   };
 
   const handleCancelCreate = () => {
@@ -222,17 +217,35 @@ export default function FolderPathSelect({
             </button>
           </div>
         ) : (
-          <select className={styles.select} value={currentValue} onChange={handleChange} disabled={disabled}>
-            <option value="" disabled>
-              {foldersLoading ? "Loading folders…" : "Select folder"}
-            </option>
-            {folders.map((f) => (
-              <option key={f.path} value={f.path}>
-                {f.name}
+          <div className={styles.selectRow}>
+            <select
+              className={styles.select}
+              value={currentValue}
+              onChange={handleChange}
+              disabled={disabled || folders.length === 0}
+            >
+              <option value="" disabled>
+                {foldersLoading
+                  ? "Loading folders…"
+                  : folders.length === 0
+                    ? "No folders yet"
+                    : "Select folder"}
               </option>
-            ))}
-            <option value={CREATE_NEW_VALUE}>+ Create new folder…</option>
-          </select>
+              {folders.map((f) => (
+                <option key={f.path} value={f.path}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className={styles.createNewBtn}
+              onClick={handleOpenCreate}
+              disabled={disabled}
+            >
+              + New folder
+            </button>
+          </div>
         )}
 
         {saving && <span className={styles.status}>Saving…</span>}
