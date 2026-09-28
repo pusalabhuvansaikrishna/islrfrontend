@@ -19,6 +19,11 @@
 // disable submission and explain why, rather than letting the user hit
 // the backend's 400 blind. The backend still enforces this on POST — this
 // check is just an earlier, friendlier warning.
+//
+// Each signer row shows a photo (or initials fallback) via the shared
+// useSignerPhoto hook, which authenticates through GET
+// /signers/{signer_id}/photo the same way every other API call in the app
+// does — see SignerAccordionItem / EditSignerModal for the same pattern.
 
 import { useEffect, useRef, useState } from "react";
 import styles from "./StartSessionModal.module.css";
@@ -31,6 +36,7 @@ import {
   type SessionRow,
 } from "@/lib/api";
 import CreateSignerModal from "@/components/CreateSignerModal";
+import { useSignerPhoto } from "@/hooks/useSignerPhoto";
 
 type StartSessionModalProps = {
   jobId: string;
@@ -46,6 +52,44 @@ function toDatetimeLocalValue(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
     date.getHours()
   )}:${pad(date.getMinutes())}`;
+}
+
+function initials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+// One row in the signer combo list. Split out from the main component so
+// each row's useSignerPhoto call is scoped to that row only, instead of
+// fetching all photos in one component's effect.
+function SignerComboItem({ signer, onSelect }: { signer: SignerRecord; onSelect: () => void }) {
+  const { photoUrl, failed } = useSignerPhoto(signer.signer_id, Boolean(signer.photo_path));
+  const hasUsablePhoto = Boolean(photoUrl) && !failed;
+
+  return (
+    <button type="button" className={styles.comboItem} onClick={onSelect}>
+      <span className={styles.comboItemAvatar}>
+        {hasUsablePhoto ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photoUrl!} alt="" className={styles.comboItemAvatarImg} />
+        ) : (
+          <span className={styles.comboItemAvatarInitials}>{initials(signer.name)}</span>
+        )}
+      </span>
+
+      <span className={styles.comboItemText}>
+        <span className={styles.comboItemName}>{signer.name}</span>
+        <span className={styles.comboItemMeta}>
+          {signer.age} · {signer.gender === "MALE" ? "Male" : "Female"}
+          {signer.is_deaf ? " · Deaf" : ""}
+        </span>
+      </span>
+    </button>
+  );
 }
 
 export default function StartSessionModal({ jobId, isOpen, onClose, onCreated }: StartSessionModalProps) {
@@ -235,6 +279,20 @@ export default function StartSessionModal({ jobId, isOpen, onClose, onCreated }:
                     autoFocus
                   />
 
+                  {/* Sticky, always visible right under the search box —
+                      easy to find whether you're searching for an existing
+                      signer or realize partway through that you need a new
+                      one, without scrolling past however many results
+                      there are to find it at the bottom. */}
+                  <button
+                    type="button"
+                    className={styles.comboCreateBtn}
+                    onClick={() => setShowCreateSigner(true)}
+                  >
+                    <span className={styles.comboCreateIcon} aria-hidden="true">+</span>
+                    Add new signer
+                  </button>
+
                   <div className={styles.comboList}>
                     {signerLoading ? (
                       <p className={styles.comboState}>Loading…</p>
@@ -244,32 +302,17 @@ export default function StartSessionModal({ jobId, isOpen, onClose, onCreated }:
                       <p className={styles.comboState}>No signers found.</p>
                     ) : (
                       signerResults.map((s) => (
-                        <button
+                        <SignerComboItem
                           key={s.signer_id}
-                          type="button"
-                          className={styles.comboItem}
-                          onClick={() => {
+                          signer={s}
+                          onSelect={() => {
                             setSelectedSigner(s);
                             setSignerDropdownOpen(false);
                           }}
-                        >
-                          {s.name}
-                          <span className={styles.comboItemMeta}>
-                            {s.age} · {s.gender === "MALE" ? "Male" : "Female"}
-                            {s.is_deaf ? " · Deaf" : ""}
-                          </span>
-                        </button>
+                        />
                       ))
                     )}
                   </div>
-
-                  <button
-                    type="button"
-                    className={styles.comboCreateBtn}
-                    onClick={() => setShowCreateSigner(true)}
-                  >
-                    + Add signer
-                  </button>
                 </div>
               )}
 

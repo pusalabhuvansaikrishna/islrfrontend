@@ -184,27 +184,37 @@ export default function CreateSignerModal({ onClose, onCreated }: CreateSignerMo
             </div>
 
             <div className={styles.photoCol}>
-              <button
-                type="button"
-                className={styles.photoPicker}
-                onClick={() => setShowCaptureModal(true)}
-                disabled={submitting}
-              >
+              {/* Preview only -- not clickable itself. Upload vs Capture
+                  are explicit, equal-weight choices below it, same
+                  pattern as EditSignerModal. */}
+              <div className={styles.photoPicker}>
                 {photoPreview ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={photoPreview} alt="Signer preview" className={styles.photoPreviewImg} />
                 ) : (
-                  <span className={styles.photoPlaceholder}>Capture photo</span>
+                  <span className={styles.photoPlaceholder}>No photo</span>
                 )}
-              </button>
-              <button
-                type="button"
-                className={styles.uploadInsteadLink}
-                onClick={() => fileInputRef.current?.click()}
-                disabled={submitting}
-              >
-                or upload a file instead
-              </button>
+              </div>
+
+              <div className={styles.photoActionsRow}>
+                <button
+                  type="button"
+                  className={styles.photoActionBtn}
+                  onClick={() => setShowCaptureModal(true)}
+                  disabled={submitting}
+                >
+                  Capture
+                </button>
+                <button
+                  type="button"
+                  className={styles.photoActionBtn}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={submitting}
+                >
+                  Upload
+                </button>
+              </div>
+
               <input
                 ref={fileInputRef}
                 type="file"

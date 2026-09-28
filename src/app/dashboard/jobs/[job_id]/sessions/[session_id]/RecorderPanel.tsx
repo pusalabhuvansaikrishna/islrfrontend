@@ -100,6 +100,25 @@
 // `postToPrompter` prop threaded into RecordingsModal below, and the
 // `videoPreview` message type in useTeleprompterChannel.ts.
 // ---------------------------------------------------------------------
+//
+// ---------------------------------------------------------------------
+// THEME: RecordingsModal now follows the app's CSS variables
+// ---------------------------------------------------------------------
+// modalStyles previously hardcoded a fixed dark palette (#111, #fff,
+// #2f6fed, #34c759, #ff6b6b, etc.) regardless of the app's light/dark
+// theme or brand accent. Every color that should track the app's theme
+// (surface, text, borders, accent, danger, and derived "success"/
+// "disabled" tints via color-mix) now references the same CSS custom
+// properties the rest of the app uses (--surface, --text, --text-muted,
+// --border, --accent, --accent-contrast, --danger). Modal/menu scrim
+// overlays are left as neutral black translucency, and warning amber
+// (#d9a441) is left as a semantic status color, same as elsewhere in
+// this file (see .agentBadge[data-status="connecting"] in the CSS
+// module) -- neither is meant to invert with the theme. The `.stage`
+// camera-slot area in RecorderPanel.module.css is deliberately left
+// fixed-dark, per the original file's own comment, since it's meant to
+// look like camera monitor equipment rather than follow the site theme.
+// ---------------------------------------------------------------------
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./RecorderPanel.module.css";
@@ -166,7 +185,7 @@ const importBtnStyle: React.CSSProperties = {
   fontSize: 12.5,
   fontWeight: 600,
   borderRadius: 8,
-  border: "1px dashed rgba(128,128,128,0.6)",
+  border: "1px dashed var(--border)",
   background: "transparent",
   color: "inherit",
   cursor: "pointer",
@@ -228,27 +247,28 @@ const modalStyles: Record<string, React.CSSProperties> = {
     padding: "2rem",
   },
   modal: {
-    background: "#111",
-    color: "#fff",
+    background: "var(--surface)",
+    color: "var(--text)",
     borderRadius: 12,
     width: "min(1200px, 100%)",
     maxHeight: "90vh",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
+    border: "1px solid var(--border)",
   },
   header: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     padding: "1rem 1.25rem",
-    borderBottom: "1px solid rgba(255,255,255,0.1)",
+    borderBottom: "1px solid var(--border)",
     flexShrink: 0,
   },
   closeBtn: {
     background: "transparent",
     border: "none",
-    color: "#fff",
+    color: "var(--text)",
     fontSize: 18,
     cursor: "pointer",
     lineHeight: 1,
@@ -265,12 +285,12 @@ const modalStyles: Record<string, React.CSSProperties> = {
     flexWrap: "wrap",
   },
   indexTab: {
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.15)",
+    background: "color-mix(in srgb, var(--text) 6%, transparent)",
+    border: "1px solid var(--border)",
     borderRadius: 999,
     padding: "0.35rem 0.9rem",
     cursor: "pointer",
-    color: "#fff",
+    color: "var(--text)",
     fontSize: 13,
     display: "flex",
     flexDirection: "column",
@@ -278,8 +298,8 @@ const modalStyles: Record<string, React.CSSProperties> = {
     lineHeight: 1.3,
   },
   indexTabActive: {
-    background: "#fff",
-    color: "#111",
+    background: "var(--accent)",
+    color: "var(--accent-contrast)",
     fontWeight: 600,
   },
   indexTabDiscarded: {
@@ -296,12 +316,12 @@ const modalStyles: Record<string, React.CSSProperties> = {
     gap: "0.75rem",
     marginTop: "1rem",
     padding: "0.6rem 0.8rem",
-    background: "rgba(255,255,255,0.05)",
+    background: "color-mix(in srgb, var(--text) 5%, transparent)",
     borderRadius: 10,
   },
   masterPlayBtn: {
-    background: "#fff",
-    color: "#111",
+    background: "var(--accent)",
+    color: "var(--accent-contrast)",
     border: "none",
     borderRadius: "50%",
     width: 36,
@@ -316,12 +336,13 @@ const modalStyles: Record<string, React.CSSProperties> = {
   masterTime: {
     fontSize: 12,
     fontVariantNumeric: "tabular-nums",
-    color: "rgba(255,255,255,0.75)",
+    color: "var(--text-muted)",
     flexShrink: 0,
     minWidth: 84,
   },
   masterSeek: {
     flex: 1,
+    accentColor: "var(--accent)",
   },
   multiGrid: {
     display: "grid",
@@ -331,7 +352,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
   },
   multiTile: {
     background: "#000",
-    border: "1px solid rgba(255,255,255,0.15)",
+    border: "1px solid var(--border)",
     borderRadius: 6,
     overflow: "hidden",
   },
@@ -359,6 +380,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     padding: "0.4rem 0.6rem",
     fontSize: 13,
+    color: "var(--text)",
   },
   tileActions: {
     display: "flex",
@@ -373,8 +395,8 @@ const modalStyles: Record<string, React.CSSProperties> = {
     gap: "0.4rem",
     width: "100%",
     aspectRatio: "16 / 9",
-    background: "rgba(255,255,255,0.03)",
-    color: "rgba(255,255,255,0.45)",
+    background: "color-mix(in srgb, var(--text) 3%, transparent)",
+    color: "var(--text-muted)",
     fontSize: 12,
     textAlign: "center",
     padding: "0.5rem",
@@ -382,18 +404,18 @@ const modalStyles: Record<string, React.CSSProperties> = {
   audioToggleBtn: {
     background: "transparent",
     border: "none",
-    color: "#fff",
+    color: "var(--text)",
     cursor: "pointer",
     fontSize: 14,
     padding: "0.1rem 0.3rem",
     lineHeight: 1,
   },
   teleprompterToggleBtnActive: {
-    color: "#5ec2ff",
+    color: "var(--accent)",
   },
   uploadBtn: {
-    background: "#2f6fed",
-    color: "#fff",
+    background: "var(--accent)",
+    color: "var(--accent-contrast)",
     border: "none",
     borderRadius: 8,
     padding: "0.55rem 1rem",
@@ -403,13 +425,13 @@ const modalStyles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   uploadBtnDisabled: {
-    background: "rgba(255,255,255,0.08)",
-    color: "rgba(255,255,255,0.4)",
+    background: "color-mix(in srgb, var(--text) 8%, transparent)",
+    color: "var(--text-muted)",
     cursor: "not-allowed",
   },
   uploadBtnDone: {
-    background: "rgba(52, 199, 89, 0.18)",
-    color: "#34c759",
+    background: "color-mix(in srgb, var(--accent) 18%, transparent)",
+    color: "var(--accent)",
   },
   confirmOverlay: {
     position: "fixed",
@@ -422,14 +444,15 @@ const modalStyles: Record<string, React.CSSProperties> = {
     padding: "1.5rem",
   },
   confirmBox: {
-    background: "#1a1a1a",
-    color: "#fff",
+    background: "var(--surface)",
+    color: "var(--text)",
     borderRadius: 12,
     width: "min(420px, 100%)",
     padding: "1.25rem",
     display: "flex",
     flexDirection: "column",
     gap: "0.9rem",
+    border: "1px solid var(--border)",
   },
   confirmNote: {
     margin: 0,
@@ -452,7 +475,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
     display: "flex",
     justifyContent: "space-between",
     fontSize: 13,
-    background: "rgba(255,255,255,0.05)",
+    background: "color-mix(in srgb, var(--text) 5%, transparent)",
     borderRadius: 6,
     padding: "0.45rem 0.6rem",
   },
@@ -464,8 +487,8 @@ const modalStyles: Record<string, React.CSSProperties> = {
   },
   confirmCancelBtn: {
     background: "transparent",
-    border: "1px solid rgba(255,255,255,0.25)",
-    color: "#fff",
+    border: "1px solid var(--border)",
+    color: "var(--text)",
     borderRadius: 8,
     padding: "0.5rem 1rem",
     fontSize: 13,
@@ -481,24 +504,24 @@ const modalStyles: Record<string, React.CSSProperties> = {
     width: "100%",
     height: 8,
     borderRadius: 999,
-    background: "rgba(255,255,255,0.12)",
+    background: "color-mix(in srgb, var(--text) 12%, transparent)",
     overflow: "hidden",
   },
   progressFill: {
     height: "100%",
-    background: "#2f6fed",
+    background: "var(--accent)",
     borderRadius: 999,
     transition: "width 120ms linear",
   },
   successText: {
-    color: "#34c759",
+    color: "var(--accent)",
     fontSize: 13,
     display: "flex",
     alignItems: "center",
     gap: "0.4rem",
   },
   errorText: {
-    color: "#ff6b6b",
+    color: "var(--danger)",
     fontSize: 13,
   },
   validityRow: {
@@ -510,37 +533,37 @@ const modalStyles: Record<string, React.CSSProperties> = {
   },
   validityLabel: {
     fontSize: 12.5,
-    color: "rgba(255,255,255,0.65)",
+    color: "var(--text-muted)",
   },
   validityToggle: {
     display: "inline-flex",
     borderRadius: 999,
-    border: "1px solid rgba(255,255,255,0.18)",
+    border: "1px solid var(--border)",
     overflow: "hidden",
   },
   validityBtn: {
     background: "transparent",
     border: "none",
-    color: "rgba(255,255,255,0.65)",
+    color: "var(--text-muted)",
     fontSize: 12.5,
     fontWeight: 600,
     padding: "0.35rem 0.85rem",
     cursor: "pointer",
   },
   validityBtnValidActive: {
-    background: "rgba(52, 199, 89, 0.22)",
-    color: "#34c759",
+    background: "color-mix(in srgb, var(--accent) 22%, transparent)",
+    color: "var(--accent)",
   },
   validityBtnInvalidActive: {
-    background: "rgba(255, 107, 107, 0.2)",
-    color: "#ff6b6b",
+    background: "color-mix(in srgb, var(--danger) 20%, transparent)",
+    color: "var(--danger)",
   },
   tabValidityDotValid: {
     display: "inline-block",
     width: 7,
     height: 7,
     borderRadius: "50%",
-    background: "#34c759",
+    background: "var(--accent)",
     marginLeft: 6,
   },
   tabValidityDotInvalid: {
@@ -548,7 +571,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
     width: 7,
     height: 7,
     borderRadius: "50%",
-    background: "#ff6b6b",
+    background: "var(--danger)",
     marginLeft: 6,
   },
 };
@@ -1525,7 +1548,7 @@ function RecordingsModal({
                   <span>
                     {attemptLabel(attemptIndex)} · {clips.length} camera{clips.length === 1 ? "" : "s"}
                   </span>
-                  <strong style={{ color: isValid ? "#34c759" : "#ff6b6b" }}>
+                  <strong style={{ color: isValid ? "var(--accent)" : "var(--danger)" }}>
                     {isValid ? "Valid" : "Invalid"}
                   </strong>
                 </li>
@@ -2654,8 +2677,9 @@ export default function RecorderPanel({
         >
           <span
             style={{
-              background: "rgba(17,17,17,0.85)",
-              color: "#fff",
+              background: "var(--surface)",
+              color: "var(--text)",
+              border: "1px solid var(--border)",
               padding: "0.5rem 1.1rem",
               borderRadius: 999,
               fontSize: 13,

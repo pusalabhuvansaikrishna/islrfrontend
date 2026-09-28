@@ -180,6 +180,12 @@ export default function FolderPathSelect({
   };
 
   const disabled = loading || foldersLoading || saving || !!foldersError;
+  // A folder is already configured for this setting once we have a
+  // non-empty saved value. When that's true, the full "+ New folder"
+  // button is unnecessary clutter -- but creating a new one must still
+  // be possible, just less prominent, so it collapses to a small icon
+  // button instead of disappearing entirely.
+  const hasConfiguredFolder = !loading && currentValue !== "";
 
   return (
     <div className={styles.row}>
@@ -237,14 +243,28 @@ export default function FolderPathSelect({
                 </option>
               ))}
             </select>
-            <button
-              type="button"
-              className={styles.createNewBtn}
-              onClick={handleOpenCreate}
-              disabled={disabled}
-            >
-              + New folder
-            </button>
+
+            {hasConfiguredFolder ? (
+              <button
+                type="button"
+                className={styles.createNewIconBtn}
+                onClick={handleOpenCreate}
+                disabled={disabled}
+                title="Create new folder"
+                aria-label="Create new folder"
+              >
+                +
+              </button>
+            ) : (
+              <button
+                type="button"
+                className={styles.createNewBtn}
+                onClick={handleOpenCreate}
+                disabled={disabled}
+              >
+                + New folder
+              </button>
+            )}
           </div>
         )}
 

@@ -50,8 +50,8 @@
 }
 
 .agentBadge[data-status="connected"] {
-  color: #24b89e;
-  background: rgba(53, 208, 181, 0.14);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .agentBadge[data-status="connecting"] {
@@ -285,9 +285,9 @@
 }
 
 .previewToggleBtn:hover:not(:disabled) {
-  background: rgba(36, 184, 158, 0.85);
-  border-color: rgba(36, 184, 158, 0.9);
-  color: #fff;
+  background: color-mix(in srgb, var(--accent) 85%, black 5%);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .previewToggleBtn:disabled {
@@ -319,18 +319,18 @@
   padding: 10px 22px;
   border-radius: 999px;
   border: none;
-  background: linear-gradient(155deg, #ff5f5f, #e23e3e);
+  background: linear-gradient(155deg, color-mix(in srgb, var(--danger) 80%, white 20%), var(--danger));
   color: #fff;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 4px 14px -3px rgba(226, 62, 62, 0.5);
+  box-shadow: 0 4px 14px -3px color-mix(in srgb, var(--danger) 50%, transparent);
   transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
 
 .recordBtn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px -3px rgba(226, 62, 62, 0.65);
+  box-shadow: 0 6px 18px -3px color-mix(in srgb, var(--danger) 65%, transparent);
 }
 
 .recordBtn:disabled {
@@ -423,9 +423,9 @@
 .mockRunBtn {
   padding: 6px 14px;
   border-radius: 999px;
-  border: 1px solid #24b89e;
+  border: 1px solid var(--accent);
   background: transparent;
-  color: #24b89e;
+  color: var(--accent);
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
@@ -433,7 +433,7 @@
 }
 
 .mockRunBtn:hover:not(:disabled) {
-  background: rgba(53, 208, 181, 0.14);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .mockRunBtn:active:not(:disabled) {
@@ -465,7 +465,7 @@
 .prompterProgressFill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #35d0b5, #24b89e);
+  background: var(--accent);
   transition: width 0.15s linear;
 }
 
@@ -617,7 +617,7 @@
 
 .speedSlider {
   width: 140px;
-  accent-color: #24b89e;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 

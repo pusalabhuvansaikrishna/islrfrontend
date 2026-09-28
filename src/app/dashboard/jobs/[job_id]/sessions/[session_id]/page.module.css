@@ -105,7 +105,13 @@
   gap: 24px;
   flex: 1;
   min-height: 0;
-  align-items: flex-start;
+  /* Was flex-start: the sidebar sized to its OWN content (i.e. grew with
+     however many transcriptions were in it) instead of matching
+     RecorderPanel's height on the right. "stretch" makes the sidebar's
+     height follow whichever column is taller -- in practice, the
+     right-hand column -- so the transcription lists scroll inside a box
+     that matches it instead of pushing the page taller. */
+  align-items: stretch;
 }
 
 .sidebar {
@@ -116,6 +122,34 @@
   border-radius: var(--radius);
   padding: 16px;
   overflow-y: auto;
+  /* A stretched flex item still defaults to min-height: auto, which lets
+     it grow to fit its content anyway and defeats overflow-y above --
+     this override is what actually allows it to stop at the stretched
+     height and scroll internally instead. */
+  min-height: 0;
+  /* Firefox: thin themed scrollbar (thumb, track) instead of the OS
+     default. Chromium/Safari don't support this property, hence the
+     ::-webkit-scrollbar-* rules below covering those. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 999px;
+  border: 2px solid var(--surface);
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted);
 }
 
 .sidebarTitle {

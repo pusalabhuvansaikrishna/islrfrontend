@@ -22,6 +22,13 @@
   justify-content: flex-end;
 }
 
+.selectRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .select {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -35,6 +42,28 @@
 
 .select:disabled {
   opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.createNewBtn {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0 12px;
+  height: 34px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.createNewBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.createNewBtn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -120,6 +149,32 @@
 }
 
 .createCancelBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.createNewIconBtn {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 4px);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.createNewIconBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.createNewIconBtn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }

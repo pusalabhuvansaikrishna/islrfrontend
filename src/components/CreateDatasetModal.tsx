@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type DragEvent, type ChangeEvent } from "react";
+import { useRouter } from "next/navigation";
 import styles from "./CreateDatasetModal.module.css";
 import {
   listJobs,
@@ -32,12 +33,13 @@ const STATUS_LABEL: Record<Job["status"], string> = {
 };
 
 export default function CreateDatasetModal({ open, onClose, onJobCreated }: CreateDatasetModalProps) {
+  const router = useRouter();
+
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [requestorId, setRequestorId] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [createdJob, setCreatedJob] = useState<Job | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -68,6 +70,11 @@ export default function CreateDatasetModal({ open, onClose, onJobCreated }: Crea
       .finally(() => setJobsLoading(false));
   }
 
+  function goToJob(jobId: string) {
+    onClose();
+    router.push(`/dashboard/jobs/${jobId}`);
+  }
+
   // Reset transient form state, then load fresh jobs + requestors, whenever the modal opens.
   useEffect(() => {
     if (!open) return;
@@ -76,7 +83,6 @@ export default function CreateDatasetModal({ open, onClose, onJobCreated }: Crea
     setRequestorId("");
     setError(null);
     setSubmitting(false);
-    setCreatedJob(null);
     setJobsSearchInput("");
     setJobsSearch("");
     setShowNewRequestorModal(false);
@@ -273,21 +279,12 @@ export default function CreateDatasetModal({ open, onClose, onJobCreated }: Crea
     setError(null);
     try {
       const job = await createJob({ file: selectedFile, requestorId });
-      setCreatedJob(job);
-      setSelectedFile(null);
-      setRequestorId("");
       onJobCreated?.(job);
-      loadJobs(jobsSearch); // refresh the left rail so the new job shows up, keeping any active search
+      goToJob(job.job_id);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong while processing. Please try again.");
-    } finally {
       setSubmitting(false);
     }
-  }
-
-  function handleCreateAnother() {
-    setCreatedJob(null);
-    setError(null);
   }
 
   return (
@@ -356,7 +353,19 @@ export default function CreateDatasetModal({ open, onClose, onJobCreated }: Crea
                 <p className={styles.jobsEmpty}>{jobsSearch ? "No jobs match your search." : "No jobs yet."}</p>
               ) : (
                 jobs.map((job) => (
-                  <div key={job.job_id} className={styles.jobCard}>
+                  <div
+                    key={job.job_id}
+                    className={styles.jobCard}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => goToJob(job.job_id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        goToJob(job.job_id);
+                      }
+                    }}
+                  >
                     <div className={styles.jobCardTop}>
                       <span className={styles.jobFilename} title={job.filename}>
                         {job.filename}
@@ -388,121 +397,89 @@ export default function CreateDatasetModal({ open, onClose, onJobCreated }: Crea
           </aside>
 
           <div className={styles.mainPanel}>
-            {createdJob ? (
-              <div className={styles.successPanel}>
-                <div className={styles.successIcon}>
-                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
-                    <path d="M7.5 12.5l3 3 6-6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-                <h3 className={styles.successTitle}>Dataset created</h3>
-                <p className={styles.successMeta}>
-                  {createdJob.filename} · {createdJob.insights.total_sentences} sentences · requestor{" "}
-                  {createdJob.requestor_name}
-                </p>
-                <p className={styles.successHint}>
-                  The job has been queued and now shows up in the list on the left.
-                </p>
-                <button type="button" className={styles.cancelButton} onClick={handleCreateAnother}>
-                  Create another dataset
-                </button>
-              </div>
-            ) : (
-              <>
-                <section className={styles.uploadPanel}>
-                  <div className={styles.panelLabel}>Upload CSV</div>
-                  <div
-                    className={`${styles.dropzone} ${isDragging ? styles.dropzoneActive : ""} ${selectedFile ? styles.dropzoneFilled : ""}`}
-                    onDrop={handleDrop}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onClick={() => fileInputRef.current?.click()}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") fileInputRef.current?.click();
-                    }}
-                  >
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".csv,text/csv"
-                      onChange={handleFileInputChange}
-                      className={styles.hiddenInput}
-                    />
-                    {selectedFile ? (
-                      <div className={styles.fileChosen}>
-                        <svg viewBox="0 0 16 16" width="18" height="18" fill="none" aria-hidden="true">
-                          <path d="M4 2h5l3 3v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                          <path d="M9 2v3h3" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-                        </svg>
-                        <div>
-                          <p className={styles.fileName}>{selectedFile.name}</p>
-                          <p className={styles.fileHint}>Click or drop to replace</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className={styles.dropHint}>
-                        <svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true">
-                          <path d="M10 13V4M10 4L6.5 7.5M10 4l3.5 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M4 14v1.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                        </svg>
-                        <p>
-                          Drag a .csv file here, or <span className={styles.browseLink}>browse</span>
-                        </p>
-                        <p className={styles.fileHint}>Two columns: sentence, signers required</p>
-                      </div>
-                    )}
+            <section className={styles.uploadPanel}>
+              <div className={styles.panelLabel}>Upload CSV</div>
+              <div
+                className={`${styles.dropzone} ${isDragging ? styles.dropzoneActive : ""} ${selectedFile ? styles.dropzoneFilled : ""}`}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onClick={() => fileInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") fileInputRef.current?.click();
+                }}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={handleFileInputChange}
+                  className={styles.hiddenInput}
+                />
+                {selectedFile ? (
+                  <div className={styles.fileChosen}>
+                    <svg viewBox="0 0 16 16" width="18" height="18" fill="none" aria-hidden="true">
+                      <path d="M4 2h5l3 3v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                      <path d="M9 2v3h3" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                    </svg>
+                    <div>
+                      <p className={styles.fileName}>{selectedFile.name}</p>
+                      <p className={styles.fileHint}>Click or drop to replace</p>
+                    </div>
                   </div>
-                </section>
+                ) : (
+                  <div className={styles.dropHint}>
+                    <svg viewBox="0 0 20 20" width="22" height="22" fill="none" aria-hidden="true">
+                      <path d="M10 13V4M10 4L6.5 7.5M10 4l3.5 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M4 14v1.5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5V14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                    </svg>
+                    <p>
+                      Drag a .csv file here, or <span className={styles.browseLink}>browse</span>
+                    </p>
+                    <p className={styles.fileHint}>Two columns: sentence, signers required</p>
+                  </div>
+                )}
+              </div>
+            </section>
 
-                <section className={styles.requestorPanel}>
-                  <div className={styles.panelLabel}>Requestor</div>
-                  <select
-                    className={styles.select}
-                    value={requestorId}
-                    onChange={(event) => handleRequestorSelectChange(event.target.value)}
-                    disabled={requestorsLoading || Boolean(requestorsError)}
-                  >
-                    <option value="" disabled>
-                      {requestorsLoading
-                        ? "Loading requestors…"
-                        : requestorsError
-                          ? "Couldn't load requestors"
-                          : "Select a requestor"}
-                    </option>
-                    {requestors.map((r) => (
-                      <option key={r.requestor_id} value={r.requestor_id}>
-                        {r.name}
-                        {r.email ? ` — ${r.email}` : ""}
-                      </option>
-                    ))}
-                    <option value={NEW_REQUESTOR_VALUE}>+ Add new requestor</option>
-                  </select>
-                  {requestorsError && <p className={styles.errorText}>{requestorsError}</p>}
-                  {error && <p className={styles.errorText}>{error}</p>}
-                </section>
-              </>
-            )}
+            <section className={styles.requestorPanel}>
+              <div className={styles.panelLabel}>Requestor</div>
+              <select
+                className={styles.select}
+                value={requestorId}
+                onChange={(event) => handleRequestorSelectChange(event.target.value)}
+                disabled={requestorsLoading || Boolean(requestorsError)}
+              >
+                <option value="" disabled>
+                  {requestorsLoading
+                    ? "Loading requestors…"
+                    : requestorsError
+                      ? "Couldn't load requestors"
+                      : "Select a requestor"}
+                </option>
+                {requestors.map((r) => (
+                  <option key={r.requestor_id} value={r.requestor_id}>
+                    {r.name}
+                    {r.email ? ` — ${r.email}` : ""}
+                  </option>
+                ))}
+                <option value={NEW_REQUESTOR_VALUE}>+ Add new requestor</option>
+              </select>
+              {requestorsError && <p className={styles.errorText}>{requestorsError}</p>}
+              {error && <p className={styles.errorText}>{error}</p>}
+            </section>
           </div>
         </div>
 
         <div className={styles.footer}>
-          {createdJob ? (
-            <button type="button" className={styles.processButton} onClick={onClose}>
-              Done
-            </button>
-          ) : (
-            <>
-              <button type="button" className={styles.cancelButton} onClick={onClose}>
-                Cancel
-              </button>
-              <button type="button" className={styles.processButton} onClick={handleProcess} disabled={!canProcess}>
-                {submitting ? "Processing…" : "Process"}
-              </button>
-            </>
-          )}
+          <button type="button" className={styles.cancelButton} onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className={styles.processButton} onClick={handleProcess} disabled={!canProcess}>
+            {submitting ? "Processing…" : "Process"}
+          </button>
         </div>
       </div>
 

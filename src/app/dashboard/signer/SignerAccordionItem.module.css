@@ -139,3 +139,39 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+.detailsLayout {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.detailsPhotoCol {
+  flex: 0 0 auto;
+}
+
+.detailsPhotoImg {
+  width: 88px;
+  height: 88px;
+  border-radius: 12px;
+  object-fit: cover;
+  display: block;
+}
+
+.detailsPhotoPlaceholder {
+  width: 88px;
+  height: 88px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--avatar-bg, #e5e7eb);
+  color: var(--avatar-text, #4b5563);
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.detailsMainCol {
+  flex: 1 1 auto;
+  min-width: 0;
+}

@@ -181,32 +181,8 @@
 }
 
 .comboList {
-  max-height: 180px;
+  max-height: 220px;
   overflow-y: auto;
-}
-
-.comboItem {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  width: 100%;
-  padding: 8px 10px;
-  border: none;
-  background: none;
-  color: var(--text);
-  font-size: 14px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.comboItem:hover {
-  background: var(--bg);
-}
-
-.comboItemMeta {
-  font-size: 12px;
-  color: var(--text-muted);
 }
 
 .comboState {
@@ -223,19 +199,107 @@
   margin: 0;
 }
 
+/* "Add new signer" — sticky under the search input, above the scrollable
+   results list, so it's visible without scrolling regardless of how many
+   signers are returned. */
 .comboCreateBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   padding: 9px 10px;
   border: none;
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   background: var(--surface);
   color: var(--accent);
   font-size: 14px;
   font-weight: 500;
   text-align: left;
   cursor: pointer;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .comboCreateBtn:hover {
   background: var(--bg);
+}
+
+.comboCreateIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Signer row: avatar on the left, name + meta stacked on the right */
+.comboItem {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.comboItem:hover {
+  background: var(--bg);
+}
+
+.comboItemAvatar {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+
+.comboItemAvatarImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.comboItemAvatarInitials {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.comboItemText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.comboItemName {
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comboItemMeta {
+  font-size: 12px;
+  color: var(--text-muted);
 }

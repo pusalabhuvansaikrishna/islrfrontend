@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import styles from "@/components/CreateSignerModal.module.css";
 import { BASE_URL } from "@/config/api";
 import type { SignerRecord } from "@/components/CreateSignerModal";
+import { useSignerPhoto } from "@/hooks/useSignerPhoto";
+import PhotoCaptureModal from "@/components/Photocapturemodal";
 
 type Gender = "MALE" | "FEMALE";
 
@@ -22,14 +24,17 @@ export default function EditSignerModal({ signer, onClose, onUpdated }: EditSign
   const [isDeaf, setIsDeaf] = useState(signer.is_deaf);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [photoFailed, setPhotoFailed] = useState(false);
+  const [showCaptureModal, setShowCaptureModal] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Existing photo, served once that endpoint exists. Falls back to the
-  // placeholder if it 404s or hasn't been built yet.
-  const existingPhotoUrl = signer.photo_path ? `${BASE_URL}/signers/${signer.signer_id}/photo` : null;
+  // Existing photo, fetched through the authenticated API rather than a
+  // bare <img src>, so it works the same way every other API call does.
+  const { photoUrl: existingPhotoUrl, failed: existingPhotoFailed } = useSignerPhoto(
+    signer.signer_id,
+    Boolean(signer.photo_path)
+  );
 
   useEffect(() => {
     return () => {
@@ -37,13 +42,18 @@ export default function EditSignerModal({ signer, onClose, onUpdated }: EditSign
     };
   }, [photoPreview]);
 
-  function handlePhotoPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  // Shared by both the file picker and the GoPro capture modal -- whichever
+  // one produces a File, this is what actually stages it for preview/submit.
+  function setPhoto(file: File) {
     if (photoPreview) URL.revokeObjectURL(photoPreview);
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
+  }
+
+  function handlePhotoPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhoto(file);
   }
 
   function handleOverlayClick(e: React.MouseEvent<HTMLDivElement>) {
@@ -68,8 +78,6 @@ export default function EditSignerModal({ signer, onClose, onUpdated }: EditSign
       return;
     }
 
-    // Only send fields that actually changed — the endpoint is a partial
-    // update, so an untouched field is simply left as-is server-side.
     const formData = new FormData();
     if (trimmedName !== signer.name) formData.append("name", trimmedName);
     if (age.trim() !== String(signer.age)) formData.append("age", age.trim());
@@ -103,6 +111,8 @@ export default function EditSignerModal({ signer, onClose, onUpdated }: EditSign
       setSubmitting(false);
     }
   }
+
+  const showExistingPhoto = Boolean(existingPhotoUrl) && !existingPhotoFailed;
 
   return (
     <div className={styles.overlay} onMouseDown={handleOverlayClick}>
@@ -170,27 +180,39 @@ export default function EditSignerModal({ signer, onClose, onUpdated }: EditSign
             </div>
 
             <div className={styles.photoCol}>
-              <button
-                type="button"
-                className={styles.photoPicker}
-                onClick={() => fileInputRef.current?.click()}
-                disabled={submitting}
-              >
+              {/* No longer clickable itself -- it's just a preview now.
+                  Upload vs Capture are explicit choices below it. */}
+              <div className={styles.photoPicker}>
                 {photoPreview ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={photoPreview} alt="New signer photo" className={styles.photoPreviewImg} />
-                ) : existingPhotoUrl && !photoFailed ? (
+                ) : showExistingPhoto ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={existingPhotoUrl}
-                    alt={signer.name}
-                    className={styles.photoPreviewImg}
-                    onError={() => setPhotoFailed(true)}
-                  />
+                  <img src={existingPhotoUrl!} alt={signer.name} className={styles.photoPreviewImg} />
                 ) : (
-                  <span className={styles.photoPlaceholder}>Add photo (optional)</span>
+                  <span className={styles.photoPlaceholder}>No photo</span>
                 )}
-              </button>
+              </div>
+
+              <div className={styles.photoActionsRow}>
+                <button
+                  type="button"
+                  className={styles.photoActionBtn}
+                  onClick={() => setShowCaptureModal(true)}
+                  disabled={submitting}
+                >
+                  Capture
+                </button>
+                <button
+                  type="button"
+                  className={styles.photoActionBtn}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={submitting}
+                >
+                  Upload
+                </button>
+              </div>
+
               <input
                 ref={fileInputRef}
                 type="file"
@@ -225,6 +247,10 @@ export default function EditSignerModal({ signer, onClose, onUpdated }: EditSign
           </div>
         </form>
       </div>
+
+      {showCaptureModal && (
+        <PhotoCaptureModal onClose={() => setShowCaptureModal(false)} onCaptured={setPhoto} />
+      )}
     </div>
   );
 }

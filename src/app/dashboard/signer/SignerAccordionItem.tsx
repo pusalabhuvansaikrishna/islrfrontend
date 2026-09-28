@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import styles from "./SignerAccordionItem.module.css";
-import { BASE_URL } from "@/config/api";
 import type { SignerRecord } from "@/components/CreateSignerModal";
+import { useSignerPhoto } from "@/hooks/useSignerPhoto";
 
 interface SignerAccordionItemProps {
   signer: SignerRecord;
@@ -29,11 +29,8 @@ function formatDate(iso: string): string {
 
 export default function SignerAccordionItem({ signer, onEdit }: SignerAccordionItemProps) {
   const [expanded, setExpanded] = useState(false);
-  const [photoFailed, setPhotoFailed] = useState(false);
-
-  // Serving endpoint for signer photos doesn't exist yet — this URL is
-  // the expected shape once it does. Falls back to initials until then.
-  const photoUrl = signer.photo_path ? `${BASE_URL}/signers/${signer.signer_id}/photo` : null;
+  const { photoUrl, failed } = useSignerPhoto(signer.signer_id, Boolean(signer.photo_path));
+  const hasUsablePhoto = Boolean(photoUrl) && !failed;
 
   return (
     <div className={styles.item}>
@@ -43,19 +40,19 @@ export default function SignerAccordionItem({ signer, onEdit }: SignerAccordionI
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
       >
-        <div className={styles.avatar}>
-          {photoUrl && !photoFailed ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={photoUrl}
-              alt={signer.name}
-              className={styles.avatarImg}
-              onError={() => setPhotoFailed(true)}
-            />
-          ) : (
-            <span className={styles.avatarInitials}>{initials(signer.name)}</span>
-          )}
-        </div>
+        {/* Only shown while collapsed -- once expanded, the same photo is
+            already visible below in the larger square format, so showing
+            it again here would just be the same image twice. */}
+        {!expanded && (
+          <div className={styles.avatar}>
+            {hasUsablePhoto ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photoUrl!} alt={signer.name} className={styles.avatarImg} />
+            ) : (
+              <span className={styles.avatarInitials}>{initials(signer.name)}</span>
+            )}
+          </div>
+        )}
 
         <div className={styles.headerText}>
           <span className={styles.name}>{signer.name}</span>
@@ -72,35 +69,48 @@ export default function SignerAccordionItem({ signer, onEdit }: SignerAccordionI
 
       {expanded && (
         <div className={styles.details}>
-          <div className={styles.detailGrid}>
-            <div className={styles.detailField}>
-              <span className={styles.detailLabel}>Age</span>
-              <span className={styles.detailValue}>{signer.age ?? "—"}</span>
+          <div className={styles.detailsLayout}>
+            <div className={styles.detailsPhotoCol}>
+              {hasUsablePhoto ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photoUrl!} alt={signer.name} className={styles.detailsPhotoImg} />
+              ) : (
+                <div className={styles.detailsPhotoPlaceholder}>{initials(signer.name)}</div>
+              )}
             </div>
-            <div className={styles.detailField}>
-              <span className={styles.detailLabel}>Gender</span>
-              <span className={styles.detailValue}>{signer.gender === "MALE" ? "Male" : "Female"}</span>
-            </div>
-            <div className={styles.detailField}>
-              <span className={styles.detailLabel}>Deaf</span>
-              <span className={styles.detailValue}>{signer.is_deaf ? "Yes" : "No"}</span>
-            </div>
-            <div className={styles.detailField}>
-              <span className={styles.detailLabel}>Added</span>
-              <span className={styles.detailValue}>{formatDate(signer.created_at)}</span>
-            </div>
-          </div>
 
-          <div className={styles.detailActions}>
-            <button
-              type="button"
-              className={styles.editBtn}
-              onClick={() => onEdit?.(signer)}
-              disabled={!onEdit}
-              title={onEdit ? "Edit signer" : "Editing isn't available yet"}
-            >
-              Edit
-            </button>
+            <div className={styles.detailsMainCol}>
+              <div className={styles.detailGrid}>
+                <div className={styles.detailField}>
+                  <span className={styles.detailLabel}>Age</span>
+                  <span className={styles.detailValue}>{signer.age ?? "—"}</span>
+                </div>
+                <div className={styles.detailField}>
+                  <span className={styles.detailLabel}>Gender</span>
+                  <span className={styles.detailValue}>{signer.gender === "MALE" ? "Male" : "Female"}</span>
+                </div>
+                <div className={styles.detailField}>
+                  <span className={styles.detailLabel}>Deaf</span>
+                  <span className={styles.detailValue}>{signer.is_deaf ? "Yes" : "No"}</span>
+                </div>
+                <div className={styles.detailField}>
+                  <span className={styles.detailLabel}>Added</span>
+                  <span className={styles.detailValue}>{formatDate(signer.created_at)}</span>
+                </div>
+              </div>
+
+              <div className={styles.detailActions}>
+                <button
+                  type="button"
+                  className={styles.editBtn}
+                  onClick={() => onEdit?.(signer)}
+                  disabled={!onEdit}
+                  title={onEdit ? "Edit signer" : "Editing isn't available yet"}
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

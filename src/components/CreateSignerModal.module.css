@@ -236,3 +236,30 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.photoActionsRow {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.photoActionBtn {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 4px);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.photoActionBtn:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.photoActionBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
