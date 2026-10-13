@@ -52,9 +52,14 @@
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.closeButton:hover {
+.closeButton:hover:not(:disabled) {
   background: var(--bg);
   border-color: var(--border);
+}
+
+.closeButton:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .body {
@@ -198,7 +203,7 @@
   color: var(--text-muted);
 }
 
-/* ---------- Right side: upload + requestor ---------- */
+/* ---------- Right side: upload + notes ---------- */
 
 .mainPanel {
   flex: 1;
@@ -216,7 +221,7 @@
   flex-direction: column;
 }
 
-.requestorPanel {
+.notesPanel {
   flex: 1;
   min-height: 0;
   padding: 1.1rem 1.25rem;
@@ -231,6 +236,11 @@
   letter-spacing: 0.02em;
   margin-bottom: 0.6rem;
   flex-shrink: 0;
+}
+
+.optionalTag {
+  font-weight: 400;
+  opacity: 0.85;
 }
 
 .dropzone {
@@ -308,39 +318,41 @@
   white-space: nowrap;
 }
 
-.select {
+.textarea {
+  flex: 1;
+  min-height: 0;
   width: 100%;
-  padding: 0.55rem 0.7rem;
+  padding: 0.6rem 0.75rem;
   border-radius: var(--radius);
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--bg);
   color: var(--text);
+  font: inherit;
   font-size: 0.85rem;
-  cursor: pointer;
+  line-height: 1.5;
+  resize: none;
 }
 
-.select:focus {
+.textarea:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+.textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.notesCounter {
+  align-self: flex-end;
+  margin-top: 0.3rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
 }
 
 .errorText {
   margin: 0.5rem 0 0;
   font-size: 0.78rem;
   color: var(--danger);
-}
-
-.newRequestorForm {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.newRequestorActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.15rem;
 }
 
 /* ---------- Footer ---------- */
@@ -365,8 +377,13 @@
   cursor: pointer;
 }
 
-.cancelButton:hover {
+.cancelButton:hover:not(:disabled) {
   background: var(--bg);
+}
+
+.cancelButton:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .processButton {
@@ -388,49 +405,6 @@
 .processButton:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-/* ---------- Nested "new requestor" modal ---------- */
-
-.subOverlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-  z-index: 200;
-}
-
-.subModal {
-  width: 100%;
-  max-width: 380px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.subModalBody {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  padding: 1.1rem 1.25rem;
-}
-
-.fieldLabel {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  margin: 0.4rem 0 0.1rem;
-}
-
-.fieldLabel:first-child {
-  margin-top: 0;
 }
 
 /* ---------- Success state ---------- */
@@ -531,4 +505,10 @@
 .jobsSearchClear:hover {
   background: var(--surface);
   color: var(--text);
+}
+
+@media (max-width: 720px) {
+  .jobsRail {
+    display: none;
+  }
 }

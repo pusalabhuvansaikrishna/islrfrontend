@@ -221,11 +221,24 @@ export async function listSignerPendingTranscriptions(
   );
 }
 
+/**
+ * One row of the Sessions tab.
+ *
+ * `recorder_id` / `recorder_name` identify the session's ASSIGNEE (the
+ * backend's recorded_by_user_id) -- the person who records it. This can be
+ * a user who isn't (or is no longer) in the Recorder role, e.g. when the
+ * session defaulted to whoever created it; the Sessions tab's dropdown
+ * shows empty in that case.
+ *
+ * `ended_at` is null while the session is open.
+ */
 export type SessionRow = {
   session_id: string;
   signer_name: string;
+  recorder_id: string;
   recorder_name: string;
   session_datetime: string;
+  ended_at?: string | null;
   transcription_count: number;
   takes_count: number;
 };
@@ -247,6 +260,8 @@ export async function listJobSessions(
  * session detail page to look up that signer's pending transcriptions
  * (SessionRow, returned by list/create, only has signer_name).
  *
+ * `recorder_id` / `recorder_name` identify the session's assignee.
+ *
  * `ended_at` is null while the session is open and gets set once
  * `endJobSession` is called; the session detail page uses it to switch
  * between the "record" view and the read-only history view.
@@ -256,6 +271,7 @@ export type SessionDetail = {
   job_id: string;
   signer_id: string;
   signer_name: string;
+  recorder_id: string;
   recorder_name: string;
   session_datetime: string;
   ended_at: string | null;
@@ -268,11 +284,15 @@ export async function getJobSession(jobId: string, sessionId: string): Promise<S
 /**
  * Creates a session under a job.
  *
- * There is no recorder field: the backend fills recorded_by_user_id from
- * the authenticated caller (whoever is logged in becomes the recorder),
- * so the client only sends who's signing and when.
+ * The backend always records the authenticated caller as the session's
+ * creator (created_by_user_id). The ASSIGNEE (recorded_by_user_id) defaults
+ * to the caller too; pass `recorderId` to assign the session to someone else
+ * at creation time. That requires the "AssignSessions" permission, and the
+ * chosen user must be an active user with the Recorder role (see
+ * listRecorders).
  *
- * POST /jobs/{job_id}/sessions, JSON body { signer_id, session_datetime }
+ * POST /jobs/{job_id}/sessions, JSON body
+ * { signer_id, session_datetime, recorded_by_user_id? }
  * (the backend parses this as a Pydantic model, not Form fields — unlike
  * createJob/createRequestor/createSigner, this one is not multipart),
  * returning the created session as a SessionRow (transcription_count and
@@ -282,6 +302,8 @@ export type CreateSessionPayload = {
   signerId: string;
   /** ISO 8601 datetime string, e.g. new Date(...).toISOString() */
   sessionDatetime: string;
+  /** Optional assignee. Omit to assign the session to yourself. */
+  recorderId?: string;
 };
 
 export async function createSession(
@@ -294,8 +316,105 @@ export async function createSession(
     body: JSON.stringify({
       signer_id: data.signerId,
       session_datetime: data.sessionDatetime,
+      ...(data.recorderId ? { recorded_by_user_id: data.recorderId } : {}),
     }),
   });
+}
+
+// ---------------- Recorders & session assignment ----------------
+
+/**
+ * A user with the Recorder role -- someone a session can be assigned to.
+ */
+export type Recorder = {
+  user_id: string;
+  name: string;
+  username: string;
+  email: string | null;
+};
+
+/**
+ * Active users with the Recorder role, sorted by name. Powers the
+ * "Assigned to" dropdown on the Sessions tab.
+ *
+ * Backend route: GET /jobs/recorders (optional ?search= matching name,
+ * username or email). Requires the "AssignSessions" permission -- callers
+ * without it get a 403 (ApiError.status === 403), which the Sessions tab
+ * treats as "read-only: show the assignee as plain text".
+ */
+export async function listRecorders(params: { search?: string } = {}): Promise<Recorder[]> {
+  return apiFetch<Recorder[]>(`/jobs/recorders${toQueryString(params)}`);
+}
+
+/**
+ * Assigns (or re-assigns) a session to a recorder.
+ *
+ * Backend route: PATCH /jobs/{job_id}/sessions/{session_id}/assign,
+ * JSON body { recorded_by_user_id }, returning the updated SessionDetail
+ * (its `recorder_name` is the new assignee). Requires "AssignSessions".
+ *
+ * Errors worth surfacing to the user:
+ *   - 400: the user isn't an active Recorder
+ *   - 409: the session has already ended, or that recorder already has a
+ *          session for the same signer at the same date/time
+ */
+export async function assignSession(
+  jobId: string,
+  sessionId: string,
+  recorderId: string
+): Promise<SessionDetail> {
+  return apiFetch<SessionDetail>(`/jobs/${jobId}/sessions/${sessionId}/assign`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ recorded_by_user_id: recorderId }),
+  });
+}
+
+/**
+ * One row of the "Assigned Sessions" page: a session assigned to the
+ * logged-in user, plus enough job context to link to it
+ * (/dashboard/jobs/{job_id}/sessions/{session_id}).
+ */
+export type AssignedSession = {
+  session_id: string;
+  job_id: string;
+  job_filename: string;
+  requestor_name: string;
+  signer_id: string;
+  signer_name: string;
+  /** Who created / assigned the session. */
+  assigned_by_name: string;
+  session_datetime: string;
+  /** null while the session is open. */
+  ended_at: string | null;
+  transcription_count: number;
+  takes_count: number;
+};
+
+export type AssignedSessionsListResponse = {
+  total: number;
+  items: AssignedSession[];
+};
+
+/**
+ * Sessions assigned to the logged-in user, across all jobs, newest first.
+ * No permission needed -- the backend scopes it to the caller.
+ *
+ * Backend route: GET /sessions/assigned
+ *   ended: true  -> only ended sessions
+ *          false -> only open sessions
+ *          omitted -> both
+ */
+export async function listMyAssignedSessions(
+  params: { skip?: number; limit?: number; ended?: boolean } = {}
+): Promise<AssignedSessionsListResponse> {
+  return apiFetch<AssignedSessionsListResponse>(
+    `/sessions/assigned${toQueryString({
+      skip: params.skip,
+      limit: params.limit,
+      ended: params.ended === undefined ? undefined : String(params.ended),
+    })}`
+  );
 }
 
 /**
@@ -376,7 +495,8 @@ export type SignerTranscriptionRecordings = {
  * button); true means there's something to show first (playback of
  * existing takes, or a flag for invalid ones awaiting a retake).
  *
- * Requires the "ReadDataset" permission.
+ * Requires the "ReadDataset" permission, and the caller must be the
+ * session's assignee (or hold a see-all-sessions permission).
  */
 export async function getSignerTranscriptionRecordings(
   jobId: string,
@@ -528,6 +648,483 @@ export function uploadTakeVideos(
   });
 }
 
+// ---------------- Videos: search takes by transcription text ----------------
+//
+// GET /videos/search -- results are GROUPED:
+//
+//   TranscriptionGroup          (one sentence)
+//     └─ takes: VideoTake[]     (one per take_id; valid/invalid, signer, session)
+//          └─ videos: TakeVideo[]   (one per camera angle)
+//               └─ notes / tags / translations   (optional extras, per video)
+//
+// Paging is over sentences (groups), so all of a sentence's takes always
+// arrive together. Requires "ReadDataset".
+
+export type TakeVideoCamera = {
+  camera_id: string;
+  label: string;
+  make: string | null;
+  model: string | null;
+  serial_number: string | null;
+  firmware_version: string | null;
+};
+
+export type TakeVideo = {
+  video_id: string;
+  angle: ViewAngle;
+  duration_seconds: number | null;
+  resolution: string | null;
+  fps: number | null;
+  /** Relative API path -- prefix with BASE_URL (see takeVideoUrl). */
+  stream_url: string;
+  camera: TakeVideoCamera | null;
+  /** Newest first. Empty when the video has no notes. */
+  notes: VideoNote[];
+  /** Sorted by name. Empty when the video has no tags. */
+  tags: VideoTag[];
+  /** Sorted by key. Empty when the video has no translations. */
+  translations: Translation[];
+  /** The video's latest annotation request, or null if it was never submitted. */
+  annotation?: VideoAnnotationStatus | null;
+};
+
+/** Latest annotation request raised for a video (see submitVideoForAnnotation). */
+export type VideoAnnotationStatus = {
+  job_id: string;
+  status: JobStatus;
+  created_at: string;
+  raised_by_name: string;
+  assigned_to_name: string | null;
+};
+
+/** A free-text note on a video. A video can have any number of them. */
+export type VideoNote = {
+  note_id: string;
+  text: string;
+  created_by_user_id: string;
+  created_by_name: string;
+  created_at: string;
+  updated_at: string;
+};
+
+/** A reusable label on a video (e.g. "blurry"). */
+export type VideoTag = {
+  tag_id: string;
+  name: string;
+};
+
+/**
+ * A user-defined key/value translation of a video (e.g. key "Telugu").
+ * A video holds at most one value per key (case-insensitive).
+ */
+export type Translation = {
+  translation_id: string;
+  key: string;
+  value: string;
+  updated_at: string;
+};
+
+export type TranslationKey = {
+  key: string;
+  /** Number of videos that already use this key. */
+  usage_count: number;
+};
+
+export type VideoTake = {
+  take_id: string;
+  /** Restarts at 1 in every session, so two takes of one sentence can both be "Take 1" -- use `session` to tell them apart. */
+  take_number: number;
+  is_valid: boolean;
+  created_at: string;
+  review: {
+    reviewed_by_signer_id: string | null;
+    reviewed_by_signer_name: string | null;
+    reviewed_at: string | null;
+  };
+  session: {
+    session_id: string;
+    session_datetime: string;
+    ended_at: string | null;
+    recorder_id: string;
+    recorder_name: string;
+    created_by_name: string;
+  };
+  signer: {
+    signer_id: string;
+    name: string;
+    age: number;
+    gender: "MALE" | "FEMALE";
+    is_deaf: boolean;
+  };
+  videos: TakeVideo[];
+};
+
+export type TranscriptionGroup = {
+  transcription: {
+    transcription_id: string;
+    row_number: number | null;
+    text: string;
+    required_signer_count: number;
+  };
+  job: {
+    job_id: string;
+    status: JobStatus;
+    filename: string;
+    requestor_id: string;
+    requestor_name: string;
+    requestor_email: string | null;
+  };
+  /** Counted over the takes that matched the filters. */
+  take_count: number;
+  valid_take_count: number;
+  takes: VideoTake[];
+};
+
+export type TranscriptionGroupsResponse = {
+  /** Number of matching sentences (paging is over these). */
+  total: number;
+  items: TranscriptionGroup[];
+};
+
+export async function searchTakeVideos(
+  params: {
+    /** Case-insensitive substring match on the sentence text. */
+    q?: string;
+    /** Narrow to one specific sentence. */
+    transcriptionId?: string;
+    /** true = valid takes only, false = invalid takes only. */
+    isValid?: boolean;
+    jobId?: string;
+    signerId?: string;
+    skip?: number;
+    limit?: number;
+  } = {}
+): Promise<TranscriptionGroupsResponse> {
+  return apiFetch<TranscriptionGroupsResponse>(
+    `/videos/search${toQueryString({
+      q: params.q,
+      transcription_id: params.transcriptionId,
+      is_valid: params.isValid === undefined ? undefined : String(params.isValid),
+      job_id: params.jobId,
+      signer_id: params.signerId,
+      skip: params.skip,
+      limit: params.limit,
+    })}`
+  );
+}
+
+/** Full URL for a video's `stream_url`, ready for a <video src> (use crossOrigin="use-credentials"). */
+export function takeVideoUrl(video: Pick<TakeVideo, "stream_url">): string {
+  return `${BASE_URL}${video.stream_url}`;
+}
+
+// ---------------- Videos: notes, tags and translations ----------------
+//
+// All three are attached to a single VIDEO (one camera angle of a take).
+// Adding them requires the "AnnotateVideo" permission; callers without it
+// get a 403 (ApiError.status === 403).
+
+/**
+ * Adds a note to a video.
+ *
+ * Backend route: POST /videos/{video_id}/notes, JSON body { text }.
+ */
+export async function addVideoNote(videoId: string, text: string): Promise<VideoNote> {
+  return apiFetch<VideoNote>(`/videos/${videoId}/notes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+}
+
+/**
+ * Adds one or more tags to a video.
+ *
+ * Backend route: POST /videos/{video_id}/tags, JSON body { names }. Names are
+ * matched against existing tags case-insensitively (so "blurry" reuses
+ * "Blurry"); unknown names are created, and tags the video already has are
+ * skipped. Returns ALL tags on the video after the change, sorted by name.
+ */
+export async function addVideoTags(videoId: string, names: string[]): Promise<VideoTag[]> {
+  return apiFetch<VideoTag[]>(`/videos/${videoId}/tags`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ names }),
+  });
+}
+
+/**
+ * Adds a translation (user-defined key + value) to a video.
+ *
+ * Backend route: POST /videos/{video_id}/translations, JSON body
+ * { key, value }. If `key` matches an existing key in any letter-case, the
+ * existing spelling is reused (the returned `key` is what was stored).
+ * Errors: 409 if this video already has that key.
+ */
+export async function addVideoTranslation(
+  videoId: string,
+  key: string,
+  value: string
+): Promise<Translation> {
+  return apiFetch<Translation>(`/videos/${videoId}/translations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, value }),
+  });
+}
+
+/**
+ * Distinct translation keys already in use (case-insensitive), most used
+ * first -- offered as suggestions so the same word isn't typed in several
+ * spellings.
+ *
+ * Backend route: GET /videos/translations/keys (optional ?q= substring
+ * filter, ?limit=). Requires "AnnotateVideo".
+ */
+export async function getTranslationKeys(
+  params: { q?: string; limit?: number } = {}
+): Promise<TranslationKey[]> {
+  return apiFetch<TranslationKey[]>(`/videos/translations/keys${toQueryString(params)}`);
+}
+
+// ---------------- Videos: submit for annotation ----------------
+
+/** Mirrors the backend's AnnotationJobOut. */
+export type AnnotationJob = {
+  job_id: string;
+  /** Always "Annotation". */
+  type: string;
+  status: JobStatus;
+  video_id: string;
+  /** The Record job this video was recorded under. */
+  source_job_id: string;
+  created_at: string;
+  raised_by_user_id: string;
+  raised_by_name: string;
+  assigned_to_user_id: string | null;
+  assigned_to_name: string | null;
+  assigned_by_name: string | null;
+  assigned_at: string | null;
+};
+
+/**
+ * Raises an annotation task for one video (one camera angle of a take).
+ *
+ * Backend route: POST /videos/{video_id}/annotation-jobs, JSON body
+ * { assigned_to_user_id? }. Leave `assignedToUserId` out to raise the task
+ * unassigned. Requires the "SubmitforAnnotation" permission.
+ *
+ * Errors worth surfacing:
+ *   - 403: caller lacks "SubmitforAnnotation"
+ *   - 404: video not found (or the assignee is missing / inactive)
+ *   - 409: this video already has a PENDING or PROCESSING annotation job
+ *   - 422: the assignee doesn't hold the "AnnotateVideo" permission
+ */
+export async function submitVideoForAnnotation(
+  videoId: string,
+  assignedToUserId?: string
+): Promise<AnnotationJob> {
+  return apiFetch<AnnotationJob>(`/videos/${videoId}/annotation-jobs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(assignedToUserId ? { assigned_to_user_id: assignedToUserId } : {}),
+  });
+}
+
+// ---------------- Requested annotations (tasks the current user raised) ----------------
+//
+// GET /requested-annotations -- annotation tasks raised by the logged-in user
+// (via submitVideoForAnnotation), newest first. Only the caller's own
+// requests are returned. Requires the "SubmitforAnnotation" permission;
+// callers without it get a 403 (ApiError.status === 403).
+//
+// This backs the "Submitted" page (dashboard/annotations/submitted).
+
+export type RequestedAnnotation = {
+  /** The Annotation job. */
+  job_id: string;
+  status: JobStatus;
+  /** When the task was raised. */
+  created_at: string;
+
+  video_id: string;
+  angle: ViewAngle;
+  duration_seconds: number | null;
+  resolution: string | null;
+  fps: number | null;
+  /** Relative API path -- prefix with BASE_URL (see takeVideoUrl). */
+  stream_url: string;
+
+  take_id: string;
+  take_number: number;
+  take_is_valid: boolean;
+
+  transcription_id: string;
+  row_number: number | null;
+  /** The sentence the video was recorded for. */
+  sentence: string;
+  /** The Record job the video was recorded under. */
+  source_job_id: string;
+
+  assigned_to_user_id: string | null;
+  assigned_to_name: string | null;
+  assigned_by_name: string | null;
+  assigned_at: string | null;
+};
+
+export type RequestedAnnotationsResponse = {
+  total: number;
+  items: RequestedAnnotation[];
+};
+
+export async function listRequestedAnnotations(
+  params: {
+    status?: JobStatus;
+    /** true = only assigned tasks, false = only unassigned tasks. */
+    assigned?: boolean;
+    /** Case-insensitive substring match on the sentence text. */
+    q?: string;
+    skip?: number;
+    limit?: number;
+  } = {}
+): Promise<RequestedAnnotationsResponse> {
+  return apiFetch<RequestedAnnotationsResponse>(
+    `/requested-annotations${toQueryString({
+      status: params.status,
+      assigned: params.assigned === undefined ? undefined : String(params.assigned),
+      q: params.q,
+      skip: params.skip,
+      limit: params.limit,
+    })}`
+  );
+}
+
+// ---------------- Annotation lists: Assigned (mine) and All (admin roles) ----------------
+//
+// Same row shape as RequestedAnnotation, plus who raised the task. On the
+// Submitted page the raiser is always the caller, so it isn't needed there;
+// on the Assigned and All pages it varies from row to row.
+
+export type AnnotationJobListItem = RequestedAnnotation & {
+  raised_by_user_id: string;
+  raised_by_name: string;
+};
+
+export type AnnotationJobListResponse = {
+  total: number;
+  items: AnnotationJobListItem[];
+};
+
+type AnnotationListParams = {
+  status?: JobStatus;
+  /** Case-insensitive substring match on the sentence text. */
+  q?: string;
+  skip?: number;
+  limit?: number;
+};
+
+/**
+ * Annotation tasks assigned to the logged-in user, newest first.
+ *
+ * Backend route (new): GET /assigned-annotations. The backend scopes it to
+ * the caller (assigned_to_user_id = current user), so no assignee filter is
+ * sent from here. Requires the "SubmitforAnnotation" permission; callers
+ * without it get a 403 (ApiError.status === 403).
+ */
+export async function listMyAssignedAnnotations(
+  params: AnnotationListParams = {}
+): Promise<AnnotationJobListResponse> {
+  return apiFetch<AnnotationJobListResponse>(
+    `/assigned-annotations${toQueryString({
+      status: params.status,
+      q: params.q,
+      skip: params.skip,
+      limit: params.limit,
+    })}`
+  );
+}
+
+/**
+ * Every annotation task raised by any user, newest first.
+ *
+ * Backend route (new): GET /annotation-jobs. Restrict it on the server to
+ * SuperAdmin, Admin and RecorderAdmin (403 otherwise, ApiError.status === 403).
+ * `assigned` works like it does in listRequestedAnnotations.
+ */
+export async function listAllAnnotations(
+  params: AnnotationListParams & {
+    /** true = only assigned tasks, false = only unassigned tasks. */
+    assigned?: boolean;
+  } = {}
+): Promise<AnnotationJobListResponse> {
+  return apiFetch<AnnotationJobListResponse>(
+    `/annotation-jobs${toQueryString({
+      status: params.status,
+      assigned: params.assigned === undefined ? undefined : String(params.assigned),
+      q: params.q,
+      skip: params.skip,
+      limit: params.limit,
+    })}`
+  );
+}
+
+// ---------------- Annotation management (admin roles): annotators, assign, reject ----------------
+
+/** An annotator a task can be assigned to. */
+export type Annotator = {
+  user_id: string;
+  name: string;
+  username: string;
+  email: string | null;
+};
+
+/**
+ * Active annotators, sorted by name.
+ *
+ * Backend route: GET /annotation-jobs/annotators (optional ?search= matching
+ * name, username or email). Requires "ListAnnotators"; callers without it get
+ * a 403 (ApiError.status === 403).
+ */
+export async function listAnnotators(
+  params: { search?: string } = {}
+): Promise<Annotator[]> {
+  return apiFetch<Annotator[]>(`/annotation-jobs/annotators${toQueryString(params)}`);
+}
+
+/**
+ * Assigns (or re-assigns) an open annotation task to an annotator.
+ *
+ * Backend route: PATCH /annotation-jobs/{job_id}/assign, JSON body
+ * { assigned_to_user_id }. Returns the updated row. Requires
+ * "ApproveAnnotations" and the SuperAdmin / Admin / RecorderAdmin role.
+ *
+ * Errors worth surfacing: 404 (task missing, or the user isn't an active
+ * annotator), 409 (the task is already COMPLETED or FAILED).
+ */
+export async function assignAnnotationJob(
+  jobId: string,
+  assignedToUserId: string
+): Promise<AnnotationJobListItem> {
+  return apiFetch<AnnotationJobListItem>(`/annotation-jobs/${jobId}/assign`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ assigned_to_user_id: assignedToUserId }),
+  });
+}
+
+/**
+ * Rejects a PENDING annotation task.
+ *
+ * Backend route: PATCH /annotation-jobs/{job_id}/reject. Returns the updated
+ * row (a rejected task currently comes back with status FAILED). 409 if the
+ * task has already started or finished. Same access as assignAnnotationJob.
+ */
+export async function rejectAnnotationJob(jobId: string): Promise<AnnotationJobListItem> {
+  return apiFetch<AnnotationJobListItem>(`/annotation-jobs/${jobId}/reject`, {
+    method: "PATCH",
+  });
+}
+
 // ---------------- Signers ----------------
 // Matches GET /signers: skip (>=0), limit (1-100), search, gender, is_deaf.
 
@@ -556,9 +1153,4 @@ export async function listSigners(
       is_deaf: params.is_deaf === undefined ? undefined : String(params.is_deaf),
     })}`
   );
-
 }
-
-// Recorder is not a separate concept: sessions are created by the
-// logged-in user, and the backend records recorded_by_user_id from the
-// authenticated caller automatically. No recorders endpoint needed.

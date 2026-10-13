@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
-import CreateDatasetModal from "@/components/CreateDatasetModal"; // adjust path to match your project
+import RequestJobModal from "@/components/RequestJobModal";
 import { listJobs, ApiError, type Job, type JobStatus } from "@/lib/api";
 
 const STATUS_LABEL: Record<JobStatus, string> = {
@@ -228,10 +228,9 @@ export default function JobsPage() {
         )}
       </div>
 
-      <CreateDatasetModal
+      <RequestJobModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        onJobCreated={() => loadJobs(page, search)}
       />
     </div>
   );

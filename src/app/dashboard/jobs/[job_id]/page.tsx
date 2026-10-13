@@ -11,11 +11,14 @@ import {
   getJobOverview,
   listJobTranscriptions,
   listJobSessions,
+  listRecorders,
+  assignSession,
   ApiError,
   type Job,
   type JobOverview,
   type TranscriptionRow,
   type SessionRow,
+  type Recorder,
 } from "@/lib/api";
 
 type Tab = "overview" | "transcriptions" | "sessions";
@@ -81,6 +84,14 @@ export default function JobDetailPage() {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [sessionsError, setSessionsError] = useState<string | null>(null);
 
+  // Recorders for the "Assigned to" dropdown. `null` = not fetched yet.
+  // If the fetch fails (e.g. 403 because the user lacks AssignSessions),
+  // `canAssign` stays false and the column is shown as plain read-only text.
+  const [recorders, setRecorders] = useState<Recorder[] | null>(null);
+  const [canAssign, setCanAssign] = useState(false);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [assignError, setAssignError] = useState<string | null>(null);
+
   const [isStartSessionOpen, setIsStartSessionOpen] = useState(false);
 
   // Header (job id, filename, requestor, status) loads once.
@@ -132,6 +143,20 @@ export default function JobDetailPage() {
         .catch((err) => setSessionsError(err instanceof ApiError ? err.message : "Couldn't load sessions."))
         .finally(() => setSessionsLoading(false));
     }
+
+    // Recorders are fetched once, alongside the first visit to the Sessions
+    // tab. Any failure just means the user can't assign -> read-only column.
+    if (tab === "sessions" && recorders === null) {
+      listRecorders()
+        .then((res) => {
+          setRecorders(res);
+          setCanAssign(true);
+        })
+        .catch(() => {
+          setRecorders([]);
+          setCanAssign(false);
+        });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, jobId, searchTerm]);
 
@@ -175,6 +200,34 @@ export default function JobDetailPage() {
   function handleTranscriptionRowClick(transcription: TranscriptionRow) {
     if (!jobId) return;
     router.push(`/dashboard/jobs/${jobId}/transcriptions/${transcription.transcription_id}`);
+  }
+
+  // Assigns a session to the chosen recorder. The <select> is controlled by
+  // `sessions` state, so on failure nothing is updated and the dropdown
+  // simply snaps back to the previous value.
+  async function handleAssign(session: SessionRow, recorderId: string) {
+    if (!jobId || !recorderId || recorderId === session.recorder_id) return;
+    const recorder = recorders?.find((r) => r.user_id === recorderId);
+    if (!recorder) return;
+
+    setAssigningId(session.session_id);
+    setAssignError(null);
+    try {
+      await assignSession(jobId, session.session_id, recorderId);
+      setSessions((prev) =>
+        prev
+          ? prev.map((s) =>
+              s.session_id === session.session_id
+                ? { ...s, recorder_id: recorder.user_id, recorder_name: recorder.name }
+                : s
+            )
+          : prev
+      );
+    } catch (err) {
+      setAssignError(err instanceof ApiError ? err.message : "Couldn't assign the session.");
+    } finally {
+      setAssigningId(null);
+    }
   }
 
   return (
@@ -361,6 +414,8 @@ export default function JobDetailPage() {
 
           {tab === "sessions" && (
             <div className={styles.tabPanel}>
+              {assignError && <p className={styles.errorText}>{assignError}</p>}
+
               {sessionsLoading ? (
                 <p className={styles.stateText}>Loading sessions…</p>
               ) : sessionsError ? (
@@ -374,27 +429,59 @@ export default function JobDetailPage() {
                       <tr>
                         <th>Session</th>
                         <th>Signer</th>
-                        <th>Recorder</th>
+                        <th>Assigned to</th>
                         <th>Date &amp; time (IST)</th>
                         <th>Transcriptions</th>
                         <th>Takes</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {sessions.map((s) => (
-                        <tr
-                          key={s.session_id}
-                          onClick={() => handleSessionRowClick(s)}
-                          className={styles.clickableRow}
-                        >
-                          <td className={styles.mono}>{displaySessionId(s.session_id)}</td>
-                          <td>{s.signer_name}</td>
-                          <td>{s.recorder_name}</td>
-                          <td>{formatDateTime(s.session_datetime)}</td>
-                          <td>{s.transcription_count}</td>
-                          <td>{s.takes_count}</td>
-                        </tr>
-                      ))}
+                      {sessions.map((s) => {
+                        // If the current assignee isn't in the recorders list
+                        // (e.g. the session defaulted to its creator, who
+                        // isn't a Recorder), no option matches -> the
+                        // dropdown shows empty, ready for a selection.
+                        const selectedValue = recorders?.some((r) => r.user_id === s.recorder_id)
+                          ? s.recorder_id
+                          : "";
+                        return (
+                          <tr
+                            key={s.session_id}
+                            onClick={() => handleSessionRowClick(s)}
+                            className={styles.clickableRow}
+                          >
+                            <td className={styles.mono}>{displaySessionId(s.session_id)}</td>
+                            <td>{s.signer_name}</td>
+                            <td>
+                              {canAssign ? (
+                                <select
+                                  className={styles.assignSelect}
+                                  value={selectedValue}
+                                  disabled={assigningId === s.session_id || !!s.ended_at}
+                                  title={s.ended_at ? "This session has ended" : undefined}
+                                  // Keep clicks on the dropdown from opening the session page.
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => handleAssign(s, e.target.value)}
+                                >
+                                  <option value="" disabled>
+                                    Select recorder
+                                  </option>
+                                  {recorders?.map((r) => (
+                                    <option key={r.user_id} value={r.user_id}>
+                                      {r.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                s.recorder_name
+                              )}
+                            </td>
+                            <td>{formatDateTime(s.session_datetime)}</td>
+                            <td>{s.transcription_count}</td>
+                            <td>{s.takes_count}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

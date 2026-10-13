@@ -1,0 +1,369 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 960px;
+}
+
+.headerRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.count {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.tab {
+  padding: 0.4rem 0.85rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tabActive {
+  background: var(--bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.tab:focus-visible,
+.itemHeader:focus-visible,
+.loadMoreBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 220px;
+  max-width: 360px;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.searchInput:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.stateText {
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.errorText {
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  color: var(--danger);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.itemHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.itemHeader:hover {
+  background: var(--bg);
+}
+
+.itemMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.itemName {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.itemSub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.itemMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-shrink: 0;
+}
+
+.itemDate {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.chevron {
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.badgePENDING {
+  color: var(--text-muted);
+  background: var(--bg);
+  border-color: var(--border);
+}
+
+.badgeAPPROVED {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.badgeREJECTED {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+}
+
+.itemBody {
+  padding: 0.25rem 1rem 1.1rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 0.45rem 1rem;
+  margin: 1rem 0 0;
+  font-size: 0.85rem;
+}
+
+.details dt {
+  color: var(--text-muted);
+}
+
+.details dd {
+  margin: 0;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.notesLabel {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.notes {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.notesEmpty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.reviewBlock {
+  margin-top: 0;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--border);
+}
+
+.loadMoreBtn {
+  align-self: center;
+  padding: 0.55rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.loadMoreBtn:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.loadMoreBtn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+@media (max-width: 640px) {
+  .itemHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .itemMeta {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .details {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+
+  .details dd {
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* ── Approve / Deny buttons on each row ─────────────────────────────── */
+.itemTop {
+  display: flex;
+  align-items: center;
+}
+
+.itemTop .itemHeader {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.itemActions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 1rem 0 0.25rem;
+  flex-shrink: 0;
+}
+
+.approveBtn,
+.denyBtn {
+  height: 34px;
+  padding: 0 1rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.approveBtn {
+  border: none;
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.denyBtn {
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  background: transparent;
+  color: var(--danger);
+}
+
+.denyBtn:hover {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.approveBtn:focus-visible,
+.denyBtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .itemTop {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .itemActions {
+    padding: 0 1rem 0.85rem;
+  }
+
+  .approveBtn,
+  .denyBtn {
+    flex: 1;
+  }
+}

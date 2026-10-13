@@ -3,12 +3,11 @@
 import { useState, type FormEvent } from "react";
 import styles from "../admins/page.module.css";
 import { apiFetch, ApiError } from "../admins/api";
-import type { Editor, ResetPasswordPayload } from "./types";
+import type { Annotator, CreateAnnotatorPayload } from "./types";
 
-interface ResetPasswordModalProps {
-  editor: Editor;
+interface CreateAnnotatorModalProps {
   onClose: () => void;
-  onReset: () => void;
+  onCreated: (annotator: Annotator) => void;
 }
 
 // Mirrors the backend's _validate_password_strength: 12+ chars, upper,
@@ -24,20 +23,29 @@ function passwordError(password: string): string | null {
   return null;
 }
 
-export default function ResetPasswordModal({
-  editor,
+export default function CreateAnnotatorModal({
   onClose,
-  onReset,
-}: ResetPasswordModalProps) {
+  onCreated,
+}: CreateAnnotatorModalProps) {
+  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const emailValid = email.trim().length === 0 || /\S+@\S+\.\S+/.test(email);
   const passwordsMatch = password === confirmPassword;
   const pwError = password.length > 0 ? passwordError(password) : null;
-  const isValid = password.length > 0 && !pwError && passwordsMatch;
+  const isValid =
+    name.trim().length > 0 &&
+    username.trim().length > 0 &&
+    password.length > 0 &&
+    !pwError &&
+    passwordsMatch &&
+    emailValid;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -46,20 +54,24 @@ export default function ResetPasswordModal({
     setSubmitting(true);
     setError(null);
 
-    const payload: ResetPasswordPayload = { new_password: password };
+    const payload: CreateAnnotatorPayload = {
+      name: name.trim(),
+      username: username.trim(),
+      password,
+      ...(email.trim() ? { email: email.trim() } : {}),
+    };
 
     try {
-      await apiFetch<{ detail: string }>(
-        `/editors/${editor.user_id}/reset-password`,
-        {
-          method: "POST",
-          body: JSON.stringify(payload),
-        }
-      );
-      onReset();
+      const created = await apiFetch<Annotator>("/annotators", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      onCreated(created);
     } catch (err) {
+      // Backend returns 409 with a clear "Username is already taken" /
+      // "Email is already in use" detail — surface it as-is.
       setError(
-        err instanceof ApiError ? err.message : "Couldn't reset the password."
+        err instanceof ApiError ? err.message : "Couldn't create this annotator."
       );
     } finally {
       setSubmitting(false);
@@ -71,15 +83,15 @@ export default function ResetPasswordModal({
       className={styles.modalOverlay}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="reset-password-title"
+      aria-labelledby="create-annotator-title"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div className={styles.modal}>
         <div className={styles.modalHeader}>
-          <h3 id="reset-password-title" className={styles.modalTitle}>
-            Reset password
+          <h3 id="create-annotator-title" className={styles.modalTitle}>
+            Add annotator
           </h3>
           <button
             type="button"
@@ -92,13 +104,53 @@ export default function ResetPasswordModal({
         </div>
 
         <p className={styles.subtitle}>
-          Set a new password for <strong>{editor.username}</strong>. They'll
-          need to sign in with it next time.
+          New accounts are created with the Annotator role.
         </p>
 
         <form onSubmit={handleSubmit} className={styles.form}>
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>New password</span>
+            <span className={styles.fieldLabel}>Name</span>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Jordan Lee"
+              className={styles.input}
+              autoFocus
+            />
+          </label>
+
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Username</span>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="jordan.lee"
+              className={styles.input}
+              autoCapitalize="none"
+              autoCorrect="off"
+            />
+          </label>
+
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Email (optional)</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="jordan@company.com"
+              className={styles.input}
+            />
+            {!emailValid && (
+              <span className={styles.errorText}>
+                Enter a valid email address.
+              </span>
+            )}
+          </label>
+
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Password</span>
             <div className={styles.passwordRow}>
               <input
                 type={showPassword ? "text" : "password"}
@@ -106,7 +158,6 @@ export default function ResetPasswordModal({
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="12+ chars, upper, lower, digit, symbol"
                 className={styles.input}
-                autoFocus
               />
               <button
                 type="button"
@@ -120,7 +171,7 @@ export default function ResetPasswordModal({
           </label>
 
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>Confirm new password</span>
+            <span className={styles.fieldLabel}>Confirm password</span>
             <input
               type={showPassword ? "text" : "password"}
               value={confirmPassword}
@@ -149,7 +200,7 @@ export default function ResetPasswordModal({
               className={styles.primaryBtn}
               disabled={!isValid || submitting}
             >
-              {submitting ? "Resetting…" : "Reset password"}
+              {submitting ? "Creating…" : "Create annotator"}
             </button>
           </div>
         </form>

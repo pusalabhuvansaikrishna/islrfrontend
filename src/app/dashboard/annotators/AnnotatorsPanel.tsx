@@ -4,26 +4,26 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import styles from "../admins/page.module.css";
 import { apiFetch, ApiError } from "../admins/api";
-import type { Editor } from "./types";
+import type { Annotator } from "./types";
 import ResetPasswordModal from "./ResetPasswordModal";
-import EditEditorModal from "./EditEditorModal";
+import EditAnnotatorModal from "./EditAnnotatorModal";
 
-interface EditorsPanelProps {
+interface AnnotatorsPanelProps {
   refreshKey: number;
 }
 
-export default function EditorsPanel({ refreshKey }: EditorsPanelProps) {
-  const [editors, setEditors] = useState<Editor[]>([]);
+export default function AnnotatorsPanel({ refreshKey }: AnnotatorsPanelProps) {
+  const [annotators, setAnnotators] = useState<Annotator[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [resetTarget, setResetTarget] = useState<Editor | null>(null);
-  const [editTarget, setEditTarget] = useState<Editor | null>(null);
+  const [resetTarget, setResetTarget] = useState<Annotator | null>(null);
+  const [editTarget, setEditTarget] = useState<Annotator | null>(null);
   const [justReset, setJustReset] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [toggleError, setToggleError] = useState<string | null>(null);
 
-  // Which editor's menu is open, plus the screen position to render it at.
+  // Which annotator's menu is open, plus the screen position to render it at.
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(
     null
@@ -68,12 +68,12 @@ export default function EditorsPanel({ refreshKey }: EditorsPanelProps) {
       setLoading(true);
       setError(null);
       try {
-        const data = await apiFetch<Editor[]>("/editors");
-        if (!cancelled) setEditors(data);
+        const data = await apiFetch<Annotator[]>("/annotators");
+        if (!cancelled) setAnnotators(data);
       } catch (err) {
         if (!cancelled) {
           setError(
-            err instanceof ApiError ? err.message : "Couldn't load editors."
+            err instanceof ApiError ? err.message : "Couldn't load annotators."
           );
         }
       } finally {
@@ -89,14 +89,14 @@ export default function EditorsPanel({ refreshKey }: EditorsPanelProps) {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return editors;
-    return editors.filter(
-      (e) =>
-        e.name.toLowerCase().includes(q) ||
-        e.username.toLowerCase().includes(q) ||
-        (e.email ?? "").toLowerCase().includes(q)
+    if (!q) return annotators;
+    return annotators.filter(
+      (a) =>
+        a.name.toLowerCase().includes(q) ||
+        a.username.toLowerCase().includes(q) ||
+        (a.email ?? "").toLowerCase().includes(q)
     );
-  }, [editors, query]);
+  }, [annotators, query]);
 
   function handleReset() {
     setResetTarget(null);
@@ -104,48 +104,48 @@ export default function EditorsPanel({ refreshKey }: EditorsPanelProps) {
     setTimeout(() => setJustReset(null), 4000);
   }
 
-  function handleUpdated(updated: Editor) {
-    setEditors((prev) =>
-      prev.map((e) => (e.user_id === updated.user_id ? updated : e))
+  function handleUpdated(updated: Annotator) {
+    setAnnotators((prev) =>
+      prev.map((a) => (a.user_id === updated.user_id ? updated : a))
     );
     setEditTarget(null);
   }
 
-  async function handleToggleStatus(editor: Editor) {
+  async function handleToggleStatus(annotator: Annotator) {
     if (togglingId) return;
-    setTogglingId(editor.user_id);
+    setTogglingId(annotator.user_id);
     setToggleError(null);
     setOpenMenuId(null);
 
     try {
-      const updated = await apiFetch<Editor>(
-        `/editors/${editor.user_id}/status`,
+      const updated = await apiFetch<Annotator>(
+        `/annotators/${annotator.user_id}/status`,
         {
           method: "PATCH",
-          body: JSON.stringify({ is_active: !editor.is_active }),
+          body: JSON.stringify({ is_active: !annotator.is_active }),
         }
       );
-      setEditors((prev) =>
-        prev.map((e) => (e.user_id === updated.user_id ? updated : e))
+      setAnnotators((prev) =>
+        prev.map((a) => (a.user_id === updated.user_id ? updated : a))
       );
     } catch (err) {
       setToggleError(
         err instanceof ApiError
           ? err.message
-          : `Couldn't update status for ${editor.username}.`
+          : `Couldn't update status for ${annotator.username}.`
       );
     } finally {
       setTogglingId(null);
     }
   }
 
-  function toggleMenu(editor: Editor) {
-    if (openMenuId === editor.user_id) {
+  function toggleMenu(annotator: Annotator) {
+    if (openMenuId === annotator.user_id) {
       setOpenMenuId(null);
       setMenuPos(null);
       return;
     }
-    const btn = triggerRefs.current.get(editor.user_id);
+    const btn = triggerRefs.current.get(annotator.user_id);
     if (btn) {
       const rect = btn.getBoundingClientRect();
       setMenuPos({
@@ -153,13 +153,13 @@ export default function EditorsPanel({ refreshKey }: EditorsPanelProps) {
         left: rect.right - 176, // 176px ~= menu width; adjust to match your CSS
       });
     }
-    setOpenMenuId(editor.user_id);
+    setOpenMenuId(annotator.user_id);
   }
 
   if (loading) {
     return (
       <div className={styles.card}>
-        <p className={styles.subtitle}>Loading editors…</p>
+        <p className={styles.subtitle}>Loading annotators…</p>
       </div>
     );
   }
@@ -167,12 +167,12 @@ export default function EditorsPanel({ refreshKey }: EditorsPanelProps) {
   if (error) {
     return (
       <div className={styles.card}>
-        <p className={styles.errorText}>Couldn't load editors: {error}</p>
+        <p className={styles.errorText}>Couldn't load annotators: {error}</p>
       </div>
     );
   }
 
-  const activeEditor = filtered.find((e) => e.user_id === openMenuId) ?? null;
+  const activeAnnotator = filtered.find((a) => a.user_id === openMenuId) ?? null;
 
   return (
     <div className={styles.card}>
@@ -183,10 +183,10 @@ export default function EditorsPanel({ refreshKey }: EditorsPanelProps) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className={styles.searchInput}
-          aria-label="Search editors"
+          aria-label="Search annotators"
         />
         <span className={styles.countText}>
-          {filtered.length} {filtered.length === 1 ? "editor" : "editors"}
+          {filtered.length} {filtered.length === 1 ? "annotator" : "annotators"}
         </span>
       </div>
 
@@ -201,9 +201,9 @@ export default function EditorsPanel({ refreshKey }: EditorsPanelProps) {
       {filtered.length === 0 ? (
         <div className={styles.emptyState}>
           <p>
-            {editors.length === 0
-              ? "No editors yet. Add one to get started."
-              : `No editors match "${query}".`}
+            {annotators.length === 0
+              ? "No annotators yet. Add one to get started."
+              : `No annotators match "${query}".`}
           </p>
         </div>
       ) : (
@@ -220,39 +220,39 @@ export default function EditorsPanel({ refreshKey }: EditorsPanelProps) {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((editor) => (
-                <tr key={editor.user_id}>
-                  <td>{editor.name}</td>
-                  <td className={styles.mutedCell}>{editor.username}</td>
-                  <td className={styles.mutedCell}>{editor.email || "—"}</td>
+              {filtered.map((annotator) => (
+                <tr key={annotator.user_id}>
+                  <td>{annotator.name}</td>
+                  <td className={styles.mutedCell}>{annotator.username}</td>
+                  <td className={styles.mutedCell}>{annotator.email || "—"}</td>
                   <td>
                     <span
                       className={`${styles.statusDot} ${
-                        editor.is_active
+                        annotator.is_active
                           ? styles.statusActive
                           : styles.statusSuspended
                       }`}
                     >
-                      {editor.is_active ? "Active" : "Inactive"}
+                      {annotator.is_active ? "Active" : "Inactive"}
                     </span>
                   </td>
                   <td className={styles.mutedCell}>
-                    {editor.created_at
-                      ? new Date(editor.created_at).toLocaleDateString()
+                    {annotator.created_at
+                      ? new Date(annotator.created_at).toLocaleDateString()
                       : "—"}
                   </td>
                   <td style={{ textAlign: "right", position: "relative" }}>
                     <button
                       type="button"
                       ref={(el) => {
-                        if (el) triggerRefs.current.set(editor.user_id, el);
-                        else triggerRefs.current.delete(editor.user_id);
+                        if (el) triggerRefs.current.set(annotator.user_id, el);
+                        else triggerRefs.current.delete(annotator.user_id);
                       }}
                       className={styles.menuTrigger}
                       aria-label="More actions"
                       aria-haspopup="menu"
-                      aria-expanded={openMenuId === editor.user_id}
-                      onClick={() => toggleMenu(editor)}
+                      aria-expanded={openMenuId === annotator.user_id}
+                      onClick={() => toggleMenu(annotator)}
                     >
                       ⋮
                     </button>
@@ -265,7 +265,7 @@ export default function EditorsPanel({ refreshKey }: EditorsPanelProps) {
       )}
 
       {openMenuId &&
-        activeEditor &&
+        activeAnnotator &&
         menuPos &&
         createPortal(
           <div
@@ -284,7 +284,7 @@ export default function EditorsPanel({ refreshKey }: EditorsPanelProps) {
               role="menuitem"
               className={styles.menuItem}
               onClick={() => {
-                setEditTarget(activeEditor);
+                setEditTarget(activeAnnotator);
                 setOpenMenuId(null);
               }}
             >
@@ -294,12 +294,12 @@ export default function EditorsPanel({ refreshKey }: EditorsPanelProps) {
               type="button"
               role="menuitem"
               className={styles.menuItem}
-              onClick={() => handleToggleStatus(activeEditor)}
-              disabled={togglingId === activeEditor.user_id}
+              onClick={() => handleToggleStatus(activeAnnotator)}
+              disabled={togglingId === activeAnnotator.user_id}
             >
-              {togglingId === activeEditor.user_id
+              {togglingId === activeAnnotator.user_id
                 ? "Updating…"
-                : activeEditor.is_active
+                : activeAnnotator.is_active
                 ? "Deactivate"
                 : "Activate"}
             </button>
@@ -308,7 +308,7 @@ export default function EditorsPanel({ refreshKey }: EditorsPanelProps) {
               role="menuitem"
               className={styles.menuItem}
               onClick={() => {
-                setResetTarget(activeEditor);
+                setResetTarget(activeAnnotator);
                 setOpenMenuId(null);
               }}
             >
@@ -320,15 +320,15 @@ export default function EditorsPanel({ refreshKey }: EditorsPanelProps) {
 
       {resetTarget && (
         <ResetPasswordModal
-          editor={resetTarget}
+          annotator={resetTarget}
           onClose={() => setResetTarget(null)}
           onReset={handleReset}
         />
       )}
 
       {editTarget && (
-        <EditEditorModal
-          editor={editTarget}
+        <EditAnnotatorModal
+          annotator={editTarget}
           onClose={() => setEditTarget(null)}
           onUpdated={handleUpdated}
         />

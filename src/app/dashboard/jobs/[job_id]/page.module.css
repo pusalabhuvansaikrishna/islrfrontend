@@ -282,3 +282,15 @@
 .clickableRow:hover {
   background: rgba(255, 255, 255, 0.04); /* match whatever hover token your table already uses elsewhere */
 }
+
+.assignSelect {
+  padding: 6px 10px;
+  min-width: 160px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.assignSelect:disabled { opacity: 0.6; cursor: not-allowed; }

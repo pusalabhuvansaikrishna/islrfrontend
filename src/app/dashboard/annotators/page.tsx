@@ -2,17 +2,17 @@
 
 import { useState } from "react";
 import styles from "../admins/page.module.css";
-import EditorsPanel from "./EditorsPanel";
-import CreateEditorModal from "./CreateEditorModal";
+import AnnotatorsPanel from "./AnnotatorsPanel";
+import CreateAnnotatorModal from "./CreateAnnotatorModal";
 import RequireRole from "@/components/RequireRole";
-import type { Editor } from "./types";
+import type { Annotator } from "./types";
 
-export default function EditorsPage() {
+export default function AnnotatorsPage() {
   const [createOpen, setCreateOpen] = useState(false);
-  // Bumping this forces EditorsPanel to refetch after a successful create.
+  // Bumping this forces AnnotatorsPanel to refetch after a successful create.
   const [refreshKey, setRefreshKey] = useState(0);
 
-  function handleCreated(_editor: Editor) {
+  function handleCreated(_annotator: Annotator) {
     setCreateOpen(false);
     setRefreshKey((k) => k + 1);
   }
@@ -22,7 +22,7 @@ export default function EditorsPage() {
       <div className={styles.wrap}>
         <div className={styles.pageHeader}>
           <div>
-            <h2 className={styles.welcomeText}>Editors</h2>
+            <h2 className={styles.welcomeText}>Annotators</h2>
             <p className={styles.subtitle}>
               Manage who has content and data capture access to the app.
             </p>
@@ -33,14 +33,14 @@ export default function EditorsPage() {
             className={styles.primaryBtn}
             onClick={() => setCreateOpen(true)}
           >
-            Add editor
+            Add annotator
           </button>
         </div>
 
-        <EditorsPanel refreshKey={refreshKey} />
+        <AnnotatorsPanel refreshKey={refreshKey} />
 
         {createOpen && (
-          <CreateEditorModal
+          <CreateAnnotatorModal
             onClose={() => setCreateOpen(false)}
             onCreated={handleCreated}
           />

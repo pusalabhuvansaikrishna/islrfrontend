@@ -3,11 +3,12 @@
 import { useState, type FormEvent } from "react";
 import styles from "../admins/page.module.css";
 import { apiFetch, ApiError } from "../admins/api";
-import type { Editor, CreateEditorPayload } from "./types";
+import type { Annotator, ResetPasswordPayload } from "./types";
 
-interface CreateEditorModalProps {
+interface ResetPasswordModalProps {
+  annotator: Annotator;
   onClose: () => void;
-  onCreated: (editor: Editor) => void;
+  onReset: () => void;
 }
 
 // Mirrors the backend's _validate_password_strength: 12+ chars, upper,
@@ -23,29 +24,20 @@ function passwordError(password: string): string | null {
   return null;
 }
 
-export default function CreateEditorModal({
+export default function ResetPasswordModal({
+  annotator,
   onClose,
-  onCreated,
-}: CreateEditorModalProps) {
-  const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
+  onReset,
+}: ResetPasswordModalProps) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const emailValid = email.trim().length === 0 || /\S+@\S+\.\S+/.test(email);
   const passwordsMatch = password === confirmPassword;
   const pwError = password.length > 0 ? passwordError(password) : null;
-  const isValid =
-    name.trim().length > 0 &&
-    username.trim().length > 0 &&
-    password.length > 0 &&
-    !pwError &&
-    passwordsMatch &&
-    emailValid;
+  const isValid = password.length > 0 && !pwError && passwordsMatch;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -54,24 +46,20 @@ export default function CreateEditorModal({
     setSubmitting(true);
     setError(null);
 
-    const payload: CreateEditorPayload = {
-      name: name.trim(),
-      username: username.trim(),
-      password,
-      ...(email.trim() ? { email: email.trim() } : {}),
-    };
+    const payload: ResetPasswordPayload = { new_password: password };
 
     try {
-      const created = await apiFetch<Editor>("/editors", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      onCreated(created);
+      await apiFetch<{ detail: string }>(
+        `/annotators/${annotator.user_id}/reset-password`,
+        {
+          method: "POST",
+          body: JSON.stringify(payload),
+        }
+      );
+      onReset();
     } catch (err) {
-      // Backend returns 409 with a clear "Username is already taken" /
-      // "Email is already in use" detail — surface it as-is.
       setError(
-        err instanceof ApiError ? err.message : "Couldn't create this editor."
+        err instanceof ApiError ? err.message : "Couldn't reset the password."
       );
     } finally {
       setSubmitting(false);
@@ -83,15 +71,15 @@ export default function CreateEditorModal({
       className={styles.modalOverlay}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="create-editor-title"
+      aria-labelledby="reset-password-title"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div className={styles.modal}>
         <div className={styles.modalHeader}>
-          <h3 id="create-editor-title" className={styles.modalTitle}>
-            Add editor
+          <h3 id="reset-password-title" className={styles.modalTitle}>
+            Reset password
           </h3>
           <button
             type="button"
@@ -104,53 +92,13 @@ export default function CreateEditorModal({
         </div>
 
         <p className={styles.subtitle}>
-          New accounts are created with the Editor role.
+          Set a new password for <strong>{annotator.username}</strong>. They'll
+          need to sign in with it next time.
         </p>
 
         <form onSubmit={handleSubmit} className={styles.form}>
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>Name</span>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Jordan Lee"
-              className={styles.input}
-              autoFocus
-            />
-          </label>
-
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Username</span>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="jordan.lee"
-              className={styles.input}
-              autoCapitalize="none"
-              autoCorrect="off"
-            />
-          </label>
-
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Email (optional)</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="jordan@company.com"
-              className={styles.input}
-            />
-            {!emailValid && (
-              <span className={styles.errorText}>
-                Enter a valid email address.
-              </span>
-            )}
-          </label>
-
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Password</span>
+            <span className={styles.fieldLabel}>New password</span>
             <div className={styles.passwordRow}>
               <input
                 type={showPassword ? "text" : "password"}
@@ -158,6 +106,7 @@ export default function CreateEditorModal({
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="12+ chars, upper, lower, digit, symbol"
                 className={styles.input}
+                autoFocus
               />
               <button
                 type="button"
@@ -171,7 +120,7 @@ export default function CreateEditorModal({
           </label>
 
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>Confirm password</span>
+            <span className={styles.fieldLabel}>Confirm new password</span>
             <input
               type={showPassword ? "text" : "password"}
               value={confirmPassword}
@@ -200,7 +149,7 @@ export default function CreateEditorModal({
               className={styles.primaryBtn}
               disabled={!isValid || submitting}
             >
-              {submitting ? "Creating…" : "Create editor"}
+              {submitting ? "Resetting…" : "Reset password"}
             </button>
           </div>
         </form>

@@ -1,0 +1,747 @@
+/* Location: src/components/annotations/AnnotationReviewModal.module.css
+   Styles for the review workspace (same look as the Videos page modal). */
+
+/* ---------- Overlay and shell ---------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1200px;
+  max-height: calc(100vh - 48px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* Small version shown while the video loads, or if it can't be loaded. */
+.modalShell {
+  max-width: 520px;
+}
+
+.shellBody {
+  padding: 4px 20px 20px 20px;
+}
+
+.stateText {
+  margin: 0;
+  padding: 16px 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.errorText {
+  margin: 0;
+  padding: 16px 0;
+  font-size: 14px;
+  color: var(--danger);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modalHeaderMain {
+  min-width: 0;
+}
+
+.sentence {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.badgesRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.takeTitle {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.takeMeta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
+
+.badgeValid {
+  color: #16a34a;
+  border-color: #16a34a;
+}
+
+.badgeInvalid {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* The session a take belongs to. --hue is set per session in the component. */
+.sessionBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--hue) 70% 62%);
+  background: hsl(var(--hue) 70% 50% / 0.14);
+  border: 1px solid hsl(var(--hue) 70% 55% / 0.5);
+  white-space: nowrap;
+}
+
+.modalNav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.navButton,
+.closeButton {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.navButton:hover:not(:disabled),
+.closeButton:hover {
+  border-color: var(--accent);
+}
+
+.navButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.closeButton {
+  margin-left: 6px;
+}
+
+.navCount {
+  min-width: 48px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Body: player on the left, panel on the right ---------- */
+
+.modalBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);
+  gap: 20px;
+  padding: 18px 20px;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .modalBody {
+    grid-template-columns: 1fr;
+  }
+}
+
+.playerCol {
+  min-width: 0;
+}
+
+.playerToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.angleTabs {
+  display: flex;
+  gap: 8px;
+}
+
+.angleTab {
+  position: relative;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.angleTabActive {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+/* Small dot on an angle tab that already has notes / tags / translations. */
+.angleDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: middle;
+  opacity: 0.8;
+}
+
+.modeToggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.modeButton {
+  padding: 4px 10px;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modeButton:last-child {
+  border-right: none;
+}
+
+.modeButtonActive {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 6px;
+}
+
+/* "All angles" view: every camera of the take side by side. */
+.angleGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gridCell {
+  position: relative;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #000;
+}
+
+.gridCellActive {
+  border-color: var(--accent);
+}
+
+.gridVideo {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #000;
+}
+
+.gridLabel {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 8px;
+  border: none;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+}
+
+.gridLabel:hover {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+/* Speed / loop / restart under the player. */
+.playbackBar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.playButton,
+.rateButton {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.playButton:hover,
+.rateButton:hover {
+  border-color: var(--accent);
+}
+
+.rateButtonActive {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.barDivider {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border);
+}
+
+.barLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.videoMeta {
+  margin: 8px 0 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.sideCol {
+  min-width: 0;
+}
+
+/* ---------- Detail cards (under the video) ---------- */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+@media (max-width: 600px) {
+  .cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.card {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.cardTitle {
+  margin: 0 0 6px 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.cardList {
+  margin: 0;
+}
+
+.cardRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cardRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.cardRow dt {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.cardRow dd {
+  margin: 0;
+  color: var(--text);
+  font-weight: 500;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+}
+
+/* ---------- Notes / tags / translations panel ---------- */
+
+.panel {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.panelHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.panelHeadingSub {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* Shown in the panel heading when nothing can be added (Submitted page). */
+.viewOnly {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Always-visible tags + translations of the video, above the tabs. */
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.summaryTranslations {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.summaryKey {
+  margin-right: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.panelTabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+
+.panelTab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.panelTab:last-child {
+  border-right: none;
+}
+
+.panelTab:hover {
+  color: var(--text);
+}
+
+.panelTabActive {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.panelTabActive:hover {
+  color: var(--accent-contrast);
+}
+
+.panelTabCount {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  border: 1px solid currentColor;
+}
+
+.panelBody {
+  padding: 12px;
+}
+
+.tabContent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.formRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.fieldInput,
+.textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 52px;
+}
+
+.fieldInput::placeholder,
+.textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.fieldInput:focus-visible,
+.textarea:focus-visible,
+.addButton:focus-visible,
+.panelTab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.addButton {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.addButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.formError {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.emptyText {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Notes and translations share the list look; the list scrolls so a long
+   history can't stretch the panel. */
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.listItem {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.listItem:first-child {
+  padding-top: 0;
+}
+
+.listItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.noteText {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.itemMeta {
+  margin: 3px 0 0 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.translationKey {
+  margin: 0 0 2px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Tag badge: --hue is set per tag name, so a tag keeps its colour everywhere. */
+.chip {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  margin: 0;
+  padding: 0 10px;
+  line-height: 1;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--hue) 70% 62%);
+  background: hsl(var(--hue) 70% 50% / 0.14);
+  border: 1px solid hsl(var(--hue) 70% 55% / 0.5);
+}
+
+/* Existing translation keys / tags offered while typing. */
+.keyHints {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.keyHintLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.keyHint {
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.keyHint:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.keyHint:disabled {
+  cursor: default;
+}
+
+.keyHintUsed {
+  border-style: dashed;
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.keyHintUsed:hover {
+  border-color: var(--border);
+}
+
+.keyHint:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

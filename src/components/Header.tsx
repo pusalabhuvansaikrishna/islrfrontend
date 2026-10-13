@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import styles from "./Header.module.css";
 import { useAuth } from "@/lib/auth-context";
 import type { CurrentUser } from "@/lib/auth";
-import CreateDatasetModal from "./CreateDatasetModal";
+import RequestJobModal from "./RequestJobModal";
 
 function BrandMark() {
   return (
@@ -25,13 +25,13 @@ export default function Header({
   onCreateDataset,
 }: {
   user: CurrentUser;
-  /** Optional extra hook (e.g. analytics) fired when the modal opens. The modal itself is owned by Header. */
+  /** Optional extra hook (e.g. analytics) fired when the request modal opens. The modal itself is owned by Header. */
   onCreateDataset?: () => void;
 }) {
   const { logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [datasetModalOpen, setDatasetModalOpen] = useState(false);
+  const [requestModalOpen, setRequestModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -49,8 +49,8 @@ export default function Header({
     await logout();
   };
 
-  const handleCreateDatasetClick = () => {
-    setDatasetModalOpen(true);
+  const handleRequestJobClick = () => {
+    setRequestModalOpen(true);
     onCreateDataset?.();
   };
 
@@ -69,7 +69,7 @@ export default function Header({
         <button
           type="button"
           className={styles.createButton}
-          onClick={handleCreateDatasetClick}
+          onClick={handleRequestJobClick}
         >
           <svg
             viewBox="0 0 12 12"
@@ -85,7 +85,7 @@ export default function Header({
               strokeLinecap="round"
             />
           </svg>
-          Create Job
+          Request Job
         </button>
 
         <div className={styles.menuWrap} ref={menuRef}>
@@ -130,13 +130,9 @@ export default function Header({
         </div>
       </div>
 
-      <CreateDatasetModal
-        open={datasetModalOpen}
-        onClose={() => setDatasetModalOpen(false)}
-        onProcess={async ({ file, requestorId }) => {
-          // TODO: wire to the real create-job endpoint once it exists.
-          console.log("Process dataset", { file, requestorId });
-        }}
+      <RequestJobModal
+        open={requestModalOpen}
+        onClose={() => setRequestModalOpen(false)}
       />
     </header>
   );

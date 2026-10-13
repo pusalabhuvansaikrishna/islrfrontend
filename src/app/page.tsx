@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import styles from "./page.module.css";
 import ThemeToggle from "@/components/ThemeToggle";
+import RequestAccountModal from "@/components/RequestAccountModal";
 import { BASE_URL } from "@/config/api";
 
 export default function LoginPage() {
@@ -10,6 +11,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showRequest, setShowRequest] = useState(false);
 
   const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -115,9 +117,22 @@ export default function LoginPage() {
                 </button>
               </div>
             </form>
+
+            <p className={styles.requestText}>
+              Don&apos;t have an account?{" "}
+              <button
+                type="button"
+                className={styles.linkBtn}
+                onClick={() => setShowRequest(true)}
+              >
+                Request here
+              </button>
+            </p>
           </div>
         </div>
       </main>
+
+      {showRequest && <RequestAccountModal onClose={() => setShowRequest(false)} />}
     </div>
   );
 }

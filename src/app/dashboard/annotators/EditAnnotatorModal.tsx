@@ -3,22 +3,22 @@
 import { useState, type FormEvent } from "react";
 import styles from "../admins/page.module.css";
 import { apiFetch, ApiError } from "../admins/api";
-import type { Editor, UpdateEditorPayload } from "./types";
+import type { Annotator, UpdateAnnotatorPayload } from "./types";
 
-interface EditEditorModalProps {
-  editor: Editor;
+interface EditAnnotatorModalProps {
+  annotator: Annotator;
   onClose: () => void;
-  onUpdated: (editor: Editor) => void;
+  onUpdated: (annotator: Annotator) => void;
 }
 
-export default function EditEditorModal({
-  editor,
+export default function EditAnnotatorModal({
+  annotator,
   onClose,
   onUpdated,
-}: EditEditorModalProps) {
-  const [name, setName] = useState(editor.name);
-  const [username, setUsername] = useState(editor.username);
-  const [email, setEmail] = useState(editor.email ?? "");
+}: EditAnnotatorModalProps) {
+  const [name, setName] = useState(annotator.name);
+  const [username, setUsername] = useState(annotator.username);
+  const [email, setEmail] = useState(annotator.email ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,21 +33,21 @@ export default function EditEditorModal({
     setSubmitting(true);
     setError(null);
 
-    const payload: UpdateEditorPayload = {
+    const payload: UpdateAnnotatorPayload = {
       name: name.trim(),
       username: username.trim(),
       email: email.trim(),
     };
 
     try {
-      const updated = await apiFetch<Editor>(`/editors/${editor.user_id}`, {
+      const updated = await apiFetch<Annotator>(`/annotators/${annotator.user_id}`, {
         method: "PUT",
         body: JSON.stringify(payload),
       });
       onUpdated(updated);
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Couldn't update this editor."
+        err instanceof ApiError ? err.message : "Couldn't update this annotator."
       );
     } finally {
       setSubmitting(false);
@@ -59,15 +59,15 @@ export default function EditEditorModal({
       className={styles.modalOverlay}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="edit-editor-title"
+      aria-labelledby="edit-annotator-title"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div className={styles.modal}>
         <div className={styles.modalHeader}>
-          <h3 id="edit-editor-title" className={styles.modalTitle}>
-            Edit editor
+          <h3 id="edit-annotator-title" className={styles.modalTitle}>
+            Edit annotator
           </h3>
           <button
             type="button"
@@ -80,7 +80,7 @@ export default function EditEditorModal({
         </div>
 
         <p className={styles.subtitle}>
-          Update details for <strong>{editor.username}</strong>.
+          Update details for <strong>{annotator.username}</strong>.
         </p>
 
         <form onSubmit={handleSubmit} className={styles.form}>

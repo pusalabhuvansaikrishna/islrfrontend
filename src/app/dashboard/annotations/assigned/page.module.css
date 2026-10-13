@@ -1,0 +1,436 @@
+.page {
+  padding: 24px 32px;
+  color: var(--text);
+}
+
+.header {
+  margin-bottom: 20px;
+}
+
+.title {
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  max-width: 760px;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 240px;
+  max-width: 460px;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.segmentButton {
+  background: transparent;
+  border: none;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-right: 1px solid var(--border);
+}
+
+.segmentButton:last-child {
+  border-right: none;
+}
+
+.segmentButtonActive {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.resultCount {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ---------- List ---------- */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  transition: opacity 0.15s ease;
+}
+
+/* Dim the list slightly while a new page / filter is loading. */
+.listLoading {
+  opacity: 0.6;
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.thumbButton {
+  position: relative;
+  flex-shrink: 0;
+  width: 180px;
+  aspect-ratio: 16 / 9;
+  padding: 0;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.thumbButton:hover {
+  border-color: var(--accent);
+}
+
+.thumbButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.thumbWrap {
+  width: 100%;
+  height: 100%;
+}
+
+.thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Clicks go to the button, not the <video>. */
+  pointer-events: none;
+}
+
+.angleLabel {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.durationLabel {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.playOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #fff;
+  opacity: 0;
+  background: rgba(0, 0, 0, 0.25);
+  transition: opacity 0.15s ease;
+}
+
+.thumbButton:hover .playOverlay {
+  opacity: 1;
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.sentence {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.rowMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 600;
+}
+
+.miniBadge {
+  display: inline-block;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  border: 1px solid var(--border);
+}
+
+.miniValid {
+  color: #16a34a;
+  border-color: #16a34a;
+}
+
+.miniInvalid {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.rowSide {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  max-width: 220px;
+  text-align: right;
+}
+
+/* ---------- Status badges ---------- */
+
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.badgePending {
+  color: #d97706;
+  border-color: #d97706;
+}
+
+.badgeProcessing {
+  color: #2563eb;
+  border-color: #2563eb;
+}
+
+.badgeCompleted {
+  color: #16a34a;
+  border-color: #16a34a;
+}
+
+.badgeFailed {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* ---------- Assignee ---------- */
+
+.assignee {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.assigneeLabel {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.assigneeName {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.assigneeMeta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.unassigned {
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+@media (max-width: 760px) {
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .rowSide {
+    align-items: flex-start;
+    max-width: none;
+    text-align: left;
+  }
+
+  .assignee {
+    align-items: flex-start;
+  }
+}
+
+/* ---------- Preview modal ---------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 800px;
+  max-height: calc(100vh - 48px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modalHeaderMain {
+  min-width: 0;
+}
+
+.closeButton {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.closeButton:hover {
+  border-color: var(--accent);
+}
+
+.modalBody {
+  padding: 18px 20px;
+  overflow-y: auto;
+}
+
+.video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 6px;
+}
+
+.videoMeta {
+  margin: 8px 0 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* ---------- Pagination & states ---------- */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  font-size: 13px;
+}
+
+.paginationInfo {
+  color: var(--text-muted);
+}
+
+.paginationButtons {
+  display: flex;
+  gap: 10px;
+}
+
+.secondaryButton {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.secondaryButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.stateText {
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 24px 0;
+}
+
+.errorText {
+  color: var(--danger);
+  font-size: 14px;
+  padding: 24px 0;
+}
+
+/* ---------- Assigned page addition ---------- */
+
+.raisedBy {
+  font-weight: 600;
+  color: var(--text);
+}
