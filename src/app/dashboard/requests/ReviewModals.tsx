@@ -7,6 +7,12 @@ import type { AccountRequestRecord, RoleOption } from "./types";
 
 const REASON_MAX = 500;
 
+// Fixed height for the permissions preview so the dialog never changes size
+// while hovering over roles (a changing height re-centres the dialog, which
+// moves the buttons under the cursor and causes flicker). Long permission
+// lists scroll inside the panel instead.
+const PREVIEW_HEIGHT = 160;
+
 function errorFrom(detail: unknown, fallback: string): string {
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
@@ -178,7 +184,18 @@ export function ApproveModal({
             ))}
           </div>
 
-          <div className={styles.preview} aria-live="polite">
+          {/* Fixed height + internal scroll: content length can no longer resize the dialog */}
+          <div
+            className={styles.preview}
+            aria-live="polite"
+            style={{
+              height: PREVIEW_HEIGHT,
+              minHeight: PREVIEW_HEIGHT,
+              maxHeight: PREVIEW_HEIGHT,
+              overflowY: "auto",
+              boxSizing: "border-box",
+            }}
+          >
             {previewRole ? (
               <>
                 <p className={styles.previewTitle}>
