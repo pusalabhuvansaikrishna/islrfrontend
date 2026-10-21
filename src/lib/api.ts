@@ -15,6 +15,17 @@ export class ApiError extends Error {
  * original request. Throws ApiError for any non-2xx response.
  */
 async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await apiResponse(path, init);
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return response.json();
+}
+
+/** apiFetch() without the JSON parsing: returns the raw (successful) Response. */
+async function apiResponse(path: string, init: RequestInit = {}): Promise<Response> {
   const doFetch = () =>
     fetch(`${BASE_URL}${path}`, {
       ...init,
@@ -58,11 +69,7 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ApiError(response.status, detail);
   }
 
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json();
+  return response;
 }
 
 function toQueryString(params: Record<string, string | number | undefined>): string {
@@ -142,6 +149,40 @@ export async function listJobs(
   params: { skip?: number; limit?: number; status?: JobStatus; search?: string } = {}
 ): Promise<JobListResponse> {
   return apiFetch<JobListResponse>(`/jobs${toQueryString(params)}`);
+}
+
+/**
+ * One CSV file (= one Record job) for the Videos page's "CSV file" dropdown.
+ * Pass its `job_id` to searchTakeVideos({ jobId }) to show only that file's videos.
+ */
+export type VideoJob = {
+  job_id: string;
+  filename: string;
+  created_at: string;
+};
+
+/**
+ * Every uploaded CSV file, newest first, for the Videos page dropdown.
+ *
+ * Reuses GET /jobs, which is paged, so this walks the pages (100 at a time,
+ * the usual backend maximum) until it has them all. Stops after `maxPages`
+ * pages as a safety net against a runaway loop.
+ */
+export async function listVideoJobs(maxPages = 20): Promise<VideoJob[]> {
+  const PAGE = 100;
+  const out: VideoJob[] = [];
+  let total = Infinity;
+
+  for (let page = 0; page < maxPages && out.length < total; page++) {
+    const res = await listJobs({ skip: page * PAGE, limit: PAGE });
+    total = res.total;
+    for (const j of res.items) {
+      out.push({ job_id: j.job_id, filename: j.filename, created_at: j.created_at });
+    }
+    if (res.items.length < PAGE) break;
+  }
+
+  return out.sort((a, b) => b.created_at.localeCompare(a.created_at));
 }
 
 export async function createJob(data: { file: File; requestorId: string }): Promise<Job> {
@@ -794,6 +835,7 @@ export async function searchTakeVideos(
     transcriptionId?: string;
     /** true = valid takes only, false = invalid takes only. */
     isValid?: boolean;
+    /** Only sentences from this CSV file (= Record job). See listVideoJobs. */
     jobId?: string;
     signerId?: string;
     skip?: number;
@@ -816,6 +858,37 @@ export async function searchTakeVideos(
 /** Full URL for a video's `stream_url`, ready for a <video src> (use crossOrigin="use-credentials"). */
 export function takeVideoUrl(video: Pick<TakeVideo, "stream_url">): string {
   return `${BASE_URL}${video.stream_url}`;
+}
+
+/**
+ * Downloads a video's file to the user's machine. The API is cross-origin and
+ * cookie-authenticated, so a plain <a download> wouldn't work: the file is
+ * fetched as a blob (with the usual refresh-on-401) and saved from a local URL.
+ * Uses the server's Content-Disposition filename when it's exposed, otherwise
+ * `fallbackName` plus an extension from the content type.
+ */
+export async function downloadTakeVideo(
+  video: Pick<TakeVideo, "stream_url">,
+  fallbackName: string,
+): Promise<void> {
+  const response = await apiResponse(video.stream_url);
+  const blob = await response.blob();
+
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(disposition);
+  const serverName = match ? decodeURIComponent(match[1] ?? match[2]) : "";
+  const ext = blob.type.startsWith("video/") ? blob.type.slice("video/".length).split(";")[0] : "mp4";
+  const filename = serverName || `${fallbackName}.${ext === "quicktime" ? "mov" : ext}`;
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Give the browser a moment to start the download before freeing the blob.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ---------------- Videos: notes, tags and translations ----------------

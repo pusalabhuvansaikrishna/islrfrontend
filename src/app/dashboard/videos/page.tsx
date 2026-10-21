@@ -14,19 +14,25 @@
 //
 // "Submit for annotation" (POST /videos/{id}/annotation-jobs) is available on
 // every video tile and in the modal's side panel.
+//
+// Filters: sentence text, take validity, CSV file (= Record job, filtered on the
+// server so paging stays correct) and annotation status (client-side, this page only).
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import styles from "./page.module.css";
 import {
   searchTakeVideos,
+  listVideoJobs,
   takeVideoUrl,
   addVideoNote,
   addVideoTags,
   addVideoTranslation,
   getTranslationKeys,
   submitVideoForAnnotation,
+  downloadTakeVideo,
   ApiError,
   type JobStatus,
+  type VideoJob,
   type VideoAnnotationStatus,
   type TranscriptionGroup,
   type VideoTake,
@@ -62,6 +68,9 @@ const PLAYBACK_RATES = [0.25, 0.5, 0.75, 1, 1.5];
 
 // Paging is over sentences, and each sentence can hold many takes.
 const PAGE_SIZE = 5;
+
+// Value of the CSV dropdown when no file is selected.
+const ALL_CSV = "all";
 
 function displayJobId(jobId: string): string {
   return `JOB-${jobId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
@@ -238,6 +247,77 @@ function SubmitAction({
   );
 }
 
+/** File name (without extension) used when the server doesn't send one. */
+function downloadName(take: VideoTake, video: TakeVideo): string {
+  return `take${take.take_number}_${video.angle}_${video.video_id.slice(0, 8)}`.replace(/[^\w.-]+/g, "_");
+}
+
+/**
+ * Downloads one video's file. Keeps its own busy / error state.
+ *   compact - the smaller size used under tiles
+ *   inBar   - placed in the modal's playback bar (pushed to the far right)
+ */
+function DownloadButton({
+  take,
+  video,
+  compact = false,
+  inBar = false,
+}: {
+  take: VideoTake;
+  video: TakeVideo;
+  compact?: boolean;
+  inBar?: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function download() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await downloadTakeVideo(video, downloadName(take, video));
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "Couldn't download the video.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className={`${styles.downloadButton} ${compact ? styles.downloadButtonCompact : ""} ${inBar ? styles.downloadButtonBar : ""}`}
+        disabled={busy}
+        onClick={() => void download()}
+        title={`Download the ${video.angle} video`}
+      >
+        {busy ? (
+          <span className={styles.downloadSpinner} aria-hidden="true" />
+        ) : (
+          <svg
+            className={styles.downloadIcon}
+            viewBox="0 0 16 16"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M8 2v8.5M4.5 7.5 8 11l3.5-3.5M2.5 13.5h11" />
+          </svg>
+        )}
+        {busy ? "Downloading…" : "Download"}
+      </button>
+      {error && <p className={styles.downloadError}>{error}</p>}
+    </>
+  );
+}
+
 export default function VideosPage() {
   // Raw text box value vs. the debounced term actually sent to the API.
   const [searchInput, setSearchInput] = useState("");
@@ -245,6 +325,10 @@ export default function VideosPage() {
   const [validity, setValidity] = useState<ValidityFilter>("all");
   const [annotation, setAnnotation] = useState<AnnotationFilter>("all");
   const [skip, setSkip] = useState(0);
+
+  // CSV file filter: the selected file's job_id (or ALL_CSV), plus the list for the dropdown.
+  const [jobId, setJobId] = useState<string>(ALL_CSV);
+  const [csvFiles, setCsvFiles] = useState<VideoJob[]>([]);
 
   const [groups, setGroups] = useState<TranscriptionGroup[] | null>(null);
   const [total, setTotal] = useState(0);
@@ -261,6 +345,21 @@ export default function VideosPage() {
   const [submitting, setSubmitting] = useState<Set<string>>(new Set());
   const [submitErrors, setSubmitErrors] = useState<Record<string, string>>({});
 
+  // Load the CSV files once, for the dropdown.
+  useEffect(() => {
+    let cancelled = false;
+    listVideoJobs()
+      .then((rows) => {
+        if (!cancelled) setCsvFiles(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setCsvFiles([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Debounce the search box into searchTerm (and go back to page 1).
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -270,7 +369,7 @@ export default function VideosPage() {
     return () => clearTimeout(handle);
   }, [searchInput]);
 
-  // Refetch whenever the term, validity or page changes. `cancelled` stops a
+  // Refetch whenever the term, validity, CSV file or page changes. `cancelled` stops a
   // slow earlier request from overwriting a newer one's results.
   useEffect(() => {
     let cancelled = false;
@@ -280,6 +379,7 @@ export default function VideosPage() {
     searchTakeVideos({
       q: searchTerm || undefined,
       isValid: VALIDITY_TO_PARAM[validity],
+      jobId: jobId === ALL_CSV ? undefined : jobId,
       skip,
       limit: PAGE_SIZE,
     })
@@ -299,12 +399,19 @@ export default function VideosPage() {
     return () => {
       cancelled = true;
     };
-  }, [searchTerm, validity, skip, reloadKey]);
+  }, [searchTerm, validity, jobId, skip, reloadKey]);
 
   function handleValidityChange(next: ValidityFilter) {
     if (next === validity) return;
     setValidity(next);
     setSkip(0);
+  }
+
+  function handleJobChange(next: string) {
+    if (next === jobId) return;
+    setJobId(next);
+    setSkip(0);
+    setOpenId(null);
   }
 
   // ---- Local updates after a successful add, so the UI changes without a refetch ----
@@ -425,8 +532,8 @@ export default function VideosPage() {
       <div className={styles.header}>
         <h1 className={styles.title}>Videos</h1>
         <p className={styles.subtitle}>
-          Search by sentence text, then open a video to review it. Inside the viewer use ← → to move between videos,
-          Space to play or pause, and add notes, tags and translations on the right.
+          Search by sentence text or pick a CSV file, then open a video to review it. Inside the viewer use ← → to move
+          between videos, Space to play or pause, and add notes, tags and translations on the right.
         </p>
       </div>
 
@@ -438,6 +545,21 @@ export default function VideosPage() {
           onChange={(e) => setSearchInput(e.target.value)}
           className={styles.searchInput}
         />
+        <div className={styles.selectWrap}>
+          <select
+            className={styles.select}
+            value={jobId}
+            onChange={(e) => handleJobChange(e.target.value)}
+            aria-label="Filter by CSV file"
+          >
+            <option value={ALL_CSV}>All CSV files</option>
+            {csvFiles.map((f) => (
+              <option key={f.job_id} value={f.job_id}>
+                {f.filename} · {displayJobId(f.job_id)}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className={styles.segmented} aria-label="Take validity">
           {(Object.keys(VALIDITY_LABEL) as ValidityFilter[]).map((v) => (
             <button
@@ -470,7 +592,11 @@ export default function VideosPage() {
         <p className={styles.stateText}>Loading videos…</p>
       ) : !groups || groups.length === 0 ? (
         <p className={styles.stateText}>
-          {searchTerm ? `No takes found for "${searchTerm}".` : "No recorded takes found."}
+          {searchTerm
+            ? `No takes found for "${searchTerm}".`
+            : jobId !== ALL_CSV
+              ? "No recorded takes found for this CSV file."
+              : "No recorded takes found."}
         </p>
       ) : (
         <>
@@ -641,7 +767,7 @@ function TakeRow({
       ) : (
         <div className={styles.tiles}>
           {take.videos.map((v) => (
-            <VideoTile key={v.video_id} video={v} submit={submit} onOpen={() => onOpenVideo(v)} />
+            <VideoTile key={v.video_id} take={take} video={v} submit={submit} onOpen={() => onOpenVideo(v)} />
           ))}
         </div>
       )}
@@ -696,7 +822,17 @@ function LazyThumb({ src }: { src: string }) {
 }
 
 /** Level 3: one camera angle -- a still frame, what has been added to it, and its annotation request. */
-function VideoTile({ video, submit, onOpen }: { video: TakeVideo; submit: SubmitControl; onOpen: () => void }) {
+function VideoTile({
+  take,
+  video,
+  submit,
+  onOpen,
+}: {
+  take: VideoTake;
+  video: TakeVideo;
+  submit: SubmitControl;
+  onOpen: () => void;
+}) {
   const notes = video.notes.length;
   const tags = video.tags.length;
   const translations = video.translations.length;
@@ -725,8 +861,9 @@ function VideoTile({ video, submit, onOpen }: { video: TakeVideo; submit: Submit
           <div className={`${styles.tileStatus} ${styles.tileStatusEmpty}`}>Not annotated</div>
         )}
 
-        {/* Far right of the row: the annotation request status / submit button. */}
+        {/* Far right of the row: download, then the annotation request status / submit button. */}
         <div className={styles.tileActions}>
+          <DownloadButton take={take} video={video} compact />
           <SubmitAction video={video} submit={submit} compact />
           {submitError && <p className={styles.submitError}>{submitError}</p>}
         </div>
@@ -1020,6 +1157,7 @@ function ReviewModal({
               >
                 ⟳ Loop
               </button>
+              <DownloadButton key={activeVideo.video_id} take={take} video={activeVideo} inBar />
             </div>
 
             <p className={styles.videoMeta}>
