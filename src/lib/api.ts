@@ -162,27 +162,14 @@ export type VideoJob = {
 };
 
 /**
- * Every uploaded CSV file, newest first, for the Videos page dropdown.
+ * Every CSV file (Record job) that has recorded videos, newest first, for the
+ * Videos page dropdown.
  *
- * Reuses GET /jobs, which is paged, so this walks the pages (100 at a time,
- * the usual backend maximum) until it has them all. Stops after `maxPages`
- * pages as a safety net against a runaway loop.
+ * Backend route: GET /videos/csv-files. Requires "ReadDataset". Only jobs that
+ * actually have videos are returned, so no dead dropdown entries.
  */
-export async function listVideoJobs(maxPages = 20): Promise<VideoJob[]> {
-  const PAGE = 100;
-  const out: VideoJob[] = [];
-  let total = Infinity;
-
-  for (let page = 0; page < maxPages && out.length < total; page++) {
-    const res = await listJobs({ skip: page * PAGE, limit: PAGE });
-    total = res.total;
-    for (const j of res.items) {
-      out.push({ job_id: j.job_id, filename: j.filename, created_at: j.created_at });
-    }
-    if (res.items.length < PAGE) break;
-  }
-
-  return out.sort((a, b) => b.created_at.localeCompare(a.created_at));
+export async function listVideoJobs(): Promise<VideoJob[]> {
+  return apiFetch<VideoJob[]>("/videos/csv-files");
 }
 
 export async function createJob(data: { file: File; requestorId: string }): Promise<Job> {
@@ -861,34 +848,44 @@ export function takeVideoUrl(video: Pick<TakeVideo, "stream_url">): string {
 }
 
 /**
- * Downloads a video's file to the user's machine. The API is cross-origin and
- * cookie-authenticated, so a plain <a download> wouldn't work: the file is
- * fetched as a blob (with the usual refresh-on-401) and saved from a local URL.
- * Uses the server's Content-Disposition filename when it's exposed, otherwise
- * `fallbackName` plus an extension from the content type.
+ * Downloads a video's file to the user's machine, fast.
+ *
+ * The browser itself does the download: the backend's GET
+ * /videos/{video_id}/download answers with `Content-Disposition: attachment`,
+ * so the file streams straight to disk with the browser's own progress bar and
+ * nothing is held in memory (the old version fetched the whole file as a blob
+ * first, so nothing was saved until every byte had arrived).
+ *
+ * A plain link navigation can't refresh an expired token or show an error, so
+ * before triggering it we send a "preflight" request for the same URL through
+ * apiResponse(): that runs the usual refresh-on-401, and surfaces a 403 / 404
+ * as a normal ApiError. The preflight body is aborted as soon as the headers
+ * arrive, so the file isn't transferred twice.
+ *
+ * Requires the auth cookie to be sent on a top-level navigation to the API
+ * (SameSite=Lax or None). `fallbackName` (no extension) is sent as a filename
+ * hint; the server sanitises it and adds the extension.
  */
 export async function downloadTakeVideo(
-  video: Pick<TakeVideo, "stream_url">,
+  video: Pick<TakeVideo, "video_id">,
   fallbackName: string,
 ): Promise<void> {
-  const response = await apiResponse(video.stream_url);
-  const blob = await response.blob();
+  const path = `/videos/${video.video_id}/download${toQueryString({ filename: fallbackName })}`;
 
-  const disposition = response.headers.get("Content-Disposition") ?? "";
-  const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(disposition);
-  const serverName = match ? decodeURIComponent(match[1] ?? match[2]) : "";
-  const ext = blob.type.startsWith("video/") ? blob.type.slice("video/".length).split(";")[0] : "mp4";
-  const filename = serverName || `${fallbackName}.${ext === "quicktime" ? "mov" : ext}`;
+  // Preflight: auth refresh + permission / existence check, headers only.
+  const controller = new AbortController();
+  try {
+    await apiResponse(path, { signal: controller.signal });
+  } finally {
+    controller.abort();
+  }
 
-  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
+  a.href = `${BASE_URL}${path}`;
+  a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
   a.remove();
-  // Give the browser a moment to start the download before freeing the blob.
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ---------------- Videos: notes, tags and translations ----------------

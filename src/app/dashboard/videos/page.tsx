@@ -253,7 +253,9 @@ function downloadName(take: VideoTake, video: TakeVideo): string {
 }
 
 /**
- * Downloads one video's file. Keeps its own busy / error state.
+ * Downloads one video's file. Keeps its own busy / error state. The button is
+ * only busy for the quick preflight check; after that the browser's own
+ * download manager takes over and shows the progress.
  *   compact - the smaller size used under tiles
  *   inBar   - placed in the modal's playback bar (pushed to the far right)
  */
@@ -311,7 +313,7 @@ function DownloadButton({
             <path d="M8 2v8.5M4.5 7.5 8 11l3.5-3.5M2.5 13.5h11" />
           </svg>
         )}
-        {busy ? "Downloading…" : "Download"}
+        {busy ? "Starting…" : "Download"}
       </button>
       {error && <p className={styles.downloadError}>{error}</p>}
     </>
