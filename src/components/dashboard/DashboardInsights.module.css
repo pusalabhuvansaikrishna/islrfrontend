@@ -43,9 +43,43 @@
   color: var(--danger);
 }
 
+/* ---- Top row: date filter + Today's Report button ---- */
+
+.topRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 1rem;
+}
+
+.reportButton {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0 1.25rem;
+  min-height: 2.75rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.reportButton:hover {
+  filter: brightness(1.08);
+}
+
+.reportButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ---- Date filter ---- */
 
 .filterBar {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;

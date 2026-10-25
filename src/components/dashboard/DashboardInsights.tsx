@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import styles from "./DashboardInsights.module.css";
+import TodaysReportModal from "./TodaysReportModal";
 import { useAuth } from "@/lib/auth-context";
 import {
   fetchDashboardInsights,
@@ -82,6 +83,7 @@ export default function DashboardInsightsSection() {
   const [error, setError] = useState<string | null>(null);
   const [expandedSignerId, setExpandedSignerId] = useState<string | null>(null);
   const [range, setRange] = useState<DateRange>(ALL_TIME);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const canView = user?.permissions?.includes("ReadDashboard") ?? false;
   const isFiltered = range.start !== "" || range.end !== "";
@@ -169,67 +171,82 @@ export default function DashboardInsightsSection() {
 
   const periodWord = isFiltered ? "in this period" : "yet";
 
+  // Filter bar + "Today's Report" button, side by side. The modal is
+  // rendered here so it is available in every state (loading / error / data).
   const filterBar = (
-    <section className={styles.filterBar} aria-label="Date filter">
-      <div className={styles.segmented} role="group" aria-label="Quick ranges">
-        {PRESETS.map((p) => (
-          <button
-            key={p.label}
-            type="button"
-            className={`${styles.segment} ${
-              activePreset === p.label ? styles.segmentActive : ""
-            }`}
-            aria-pressed={activePreset === p.label}
-            onClick={() => setRange(p.build())}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
+    <div className={styles.topRow}>
+      <section className={styles.filterBar} aria-label="Date filter">
+        <div className={styles.segmented} role="group" aria-label="Quick ranges">
+          {PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              className={`${styles.segment} ${
+                activePreset === p.label ? styles.segmentActive : ""
+              }`}
+              aria-pressed={activePreset === p.label}
+              onClick={() => setRange(p.build())}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
 
-      {/* One bordered control for the custom range. Pick one date for a
-          single day, or both for a span. */}
-      <div className={styles.rangeGroup} role="group" aria-label="Custom range">
-        <label className={styles.dateField}>
-          <span className={styles.dateLabel}>From</span>
-          <input
-            type="date"
-            className={styles.dateInput}
-            value={range.start}
-            max={range.end || today}
-            onChange={(e) => handleStartChange(e.target.value)}
-          />
-        </label>
-        <span className={styles.rangeDash} aria-hidden="true">–</span>
-        <label className={styles.dateField}>
-          <span className={styles.dateLabel}>To</span>
-          <input
-            type="date"
-            className={styles.dateInput}
-            value={range.end}
-            min={range.start || undefined}
-            max={today}
-            onChange={(e) => handleEndChange(e.target.value)}
-          />
-        </label>
-      </div>
+        {/* One bordered control for the custom range. Pick one date for a
+            single day, or both for a span. */}
+        <div className={styles.rangeGroup} role="group" aria-label="Custom range">
+          <label className={styles.dateField}>
+            <span className={styles.dateLabel}>From</span>
+            <input
+              type="date"
+              className={styles.dateInput}
+              value={range.start}
+              max={range.end || today}
+              onChange={(e) => handleStartChange(e.target.value)}
+            />
+          </label>
+          <span className={styles.rangeDash} aria-hidden="true">–</span>
+          <label className={styles.dateField}>
+            <span className={styles.dateLabel}>To</span>
+            <input
+              type="date"
+              className={styles.dateInput}
+              value={range.end}
+              min={range.start || undefined}
+              max={today}
+              onChange={(e) => handleEndChange(e.target.value)}
+            />
+          </label>
+        </div>
 
-      <div className={styles.filterStatus} aria-live="polite">
-        <span className={styles.rangeSummary}>
-          {rangeLabel}
-          {loading && data ? " (updating…)" : ""}
-        </span>
-        {isFiltered && (
-          <button
-            type="button"
-            className={styles.clearButton}
-            onClick={() => setRange(ALL_TIME)}
-          >
-            Clear
-          </button>
-        )}
-      </div>
-    </section>
+        <div className={styles.filterStatus} aria-live="polite">
+          <span className={styles.rangeSummary}>
+            {rangeLabel}
+            {loading && data ? " (updating…)" : ""}
+          </span>
+          {isFiltered && (
+            <button
+              type="button"
+              className={styles.clearButton}
+              onClick={() => setRange(ALL_TIME)}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </section>
+
+      <button
+        type="button"
+        className={styles.reportButton}
+        onClick={() => setReportOpen(true)}
+        aria-haspopup="dialog"
+      >
+        Today&rsquo;s Report
+      </button>
+
+      {reportOpen && <TodaysReportModal onClose={() => setReportOpen(false)} />}
+    </div>
   );
 
   // First load only: nothing to show yet, but keep the filter visible.
