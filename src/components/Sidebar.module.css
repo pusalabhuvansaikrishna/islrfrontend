@@ -1,9 +1,35 @@
 .sidebar {
   width: 220px;
   flex-shrink: 0;
+  overflow-y: auto; /* menu scrolls on its own if it gets long */
+
+  /* Minimal scrollbar: slim, invisible until you hover the sidebar. */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
   background: var(--surface);
   border-right: 1px solid var(--border);
   padding: 1rem 0.75rem;
+}
+
+.sidebar:hover {
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 40%, transparent) transparent;
+}
+
+/* Fallback for browsers without scrollbar-width / scrollbar-color. */
+@supports not (scrollbar-width: thin) {
+  .sidebar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .sidebar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .sidebar::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 999px;
+  }
+  .sidebar:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-muted) 40%, transparent);
+  }
 }
 
 .list {

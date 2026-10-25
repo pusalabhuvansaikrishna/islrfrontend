@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light; /* native scrollbars, date pickers etc. follow the theme */
   --bg: #f7f7f5;
   --surface: #ffffff;
   --border: #e3e2de;
@@ -11,6 +12,7 @@
 }
 
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg: #121214;
   --surface: #1b1b1e;
   --border: #2c2c30;
@@ -34,52 +36,8 @@ body {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  * {
-    transition: none !important;
-  }
-}
-
-:root {
-  --bg: #f7f7f5;
-  --surface: #ffffff;
-  --border: #e3e2de;
-  --text: #1c1c1a;
-  --text-muted: #6b6a65;
-  --accent: #0f7c74;
-  --accent-contrast: #ffffff;
-  --danger: #c4453a;
-  --radius: 10px;
-}
-
-[data-theme="dark"] {
-  --bg: #121214;
-  --surface: #1b1b1e;
-  --border: #2c2c30;
-  --text: #ededec;
-  --text-muted: #9b9b98;
-  --accent: #4fd8c7;
-  --accent-contrast: #06211d;
-  --danger: #e5766c;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  padding: 0;
-  margin: 0;
-}
-
-body {
-  background: var(--bg);
-  color: var(--text);
+  /* Same font stack that was winning in your old file (the later,
+     duplicate block). To use Inter instead, put var(--font-inter), first. */
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   transition: background-color 0.15s ease, color 0.15s ease;
 }

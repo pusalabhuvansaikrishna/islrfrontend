@@ -54,6 +54,16 @@ export interface DashboardInsights {
   storage: StorageInsight;
 }
 
+/**
+ * Optional date filter. Both values are calendar dates in "YYYY-MM-DD"
+ * form and both are inclusive. Pass the same date for startDate and
+ * endDate to get a single day. Omit both for all-time.
+ */
+export interface DashboardInsightsParams {
+  startDate?: string;
+  endDate?: string;
+}
+
 // ---------------------------------------------------------------------
 // Matches the cookie-based session pattern used in lib/auth.ts
 // (getCurrentUser / logout) -- credentials: "include" sends the session
@@ -71,12 +81,18 @@ export class DashboardApiError extends Error {
   }
 }
 
-export async function fetchDashboardInsights(): Promise<DashboardInsights> {
-  const res = await fetch(`${BASE_URL}/dashboard/insights`, {
+export async function fetchDashboardInsights(
+  params: DashboardInsightsParams = {}
+): Promise<DashboardInsights> {
+  const query = new URLSearchParams();
+  if (params.startDate) query.set("start_date", params.startDate);
+  if (params.endDate) query.set("end_date", params.endDate);
+  const qs = query.toString();
+
+  // No Content-Type header: this is a bodyless GET, and leaving it off
+  // avoids an unnecessary CORS preflight.
+  const res = await fetch(`${BASE_URL}/dashboard/insights${qs ? `?${qs}` : ""}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
     credentials: "include",
   });
 
@@ -84,6 +100,20 @@ export async function fetchDashboardInsights(): Promise<DashboardInsights> {
     if (res.status === 403) {
       throw new DashboardApiError(
         "You don't have permission to view this dashboard.",
+        res.status
+      );
+    }
+    if (res.status === 400 || res.status === 422) {
+      // FastAPI sends { detail: "..." } for 400s and a list for 422s.
+      let detail: string | null = null;
+      try {
+        const body = await res.json();
+        if (typeof body?.detail === "string") detail = body.detail;
+      } catch {
+        /* ignore non-JSON bodies */
+      }
+      throw new DashboardApiError(
+        detail ?? "That date range isn't valid. Please check the dates and try again.",
         res.status
       );
     }

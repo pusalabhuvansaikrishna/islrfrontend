@@ -3,7 +3,9 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  min-height: 100vh;
+  /* Removed min-height: 100vh. The dashboard layout already makes the main
+     area the scroll container, so forcing the page to a full viewport
+     height only added extra, pointless scrolling. */
   background: var(--bg);
   color: var(--text);
 }
@@ -103,53 +105,61 @@
 .body {
   display: flex;
   gap: 24px;
-  flex: 1;
-  min-height: 0;
-  /* Was flex-start: the sidebar sized to its OWN content (i.e. grew with
-     however many transcriptions were in it) instead of matching
-     RecorderPanel's height on the right. "stretch" makes the sidebar's
-     height follow whichever column is taller -- in practice, the
-     right-hand column -- so the transcription lists scroll inside a box
-     that matches it instead of pushing the page taller. */
+  /* stretch: the sidebar takes the height of the row, which is set by the
+     recorder column on the right (see .sidebar's contain: size below). */
   align-items: stretch;
 }
 
+/* ---------------------------------------------------------------------
+   Transcription sidebar: same height as the recording panel next to it;
+   if the list is longer than that, it scrolls inside the box.
+
+   The trick is `contain: size`. Normally a stretched flex item's own
+   content (50 transcriptions) pushes the whole row taller. Size
+   containment makes the sidebar report a content height of zero when the
+   row's height is worked out, so the row height comes ONLY from the
+   recorder column; the sidebar is then stretched to match it, and its
+   content overflows into the scrollbar instead.
+
+   min-height is the floor for when the right side is short (for example
+   "Select a transcription" with no camera panels showing).
+   --------------------------------------------------------------------- */
 .sidebar {
   width: 340px;
   flex-shrink: 0;
+  contain: size;
+  min-height: 360px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px;
   overflow-y: auto;
-  /* A stretched flex item still defaults to min-height: auto, which lets
-     it grow to fit its content anyway and defeats overflow-y above --
-     this override is what actually allows it to stop at the stretched
-     height and scroll internally instead. */
-  min-height: 0;
-  /* Firefox: thin themed scrollbar (thumb, track) instead of the OS
-     default. Chromium/Safari don't support this property, hence the
-     ::-webkit-scrollbar-* rules below covering those. */
+  overscroll-behavior: contain; /* scrolling the list never scrolls the page behind it */
+
+  /* Minimal scrollbar: slim, invisible until you hover the sidebar. */
   scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  scrollbar-color: transparent transparent;
 }
 
-.sidebar::-webkit-scrollbar {
-  width: 8px;
+.sidebar:hover {
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 40%, transparent) transparent;
 }
 
-.sidebar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.sidebar::-webkit-scrollbar-thumb {
-  background-color: var(--border);
-  border-radius: 999px;
-  border: 2px solid var(--surface);
-}
-
-.sidebar::-webkit-scrollbar-thumb:hover {
-  background-color: var(--text-muted);
+/* Fallback for browsers without scrollbar-width / scrollbar-color. */
+@supports not (scrollbar-width: thin) {
+  .sidebar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .sidebar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .sidebar::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 999px;
+  }
+  .sidebar:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-muted) 40%, transparent);
+  }
 }
 
 .sidebarTitle {
@@ -401,9 +411,12 @@
 @media (max-width: 900px) {
   .body {
     flex-direction: column;
+    align-items: stretch;
   }
   .sidebar {
     width: 100%;
-    max-height: 280px;
+    contain: none; /* stacked layout: no neighbour to match, so size to content... */
+    min-height: 0;
+    max-height: 320px; /* ...up to this, then scroll */
   }
 }
