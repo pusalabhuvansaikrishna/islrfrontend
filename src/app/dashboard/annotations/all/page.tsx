@@ -4,12 +4,14 @@
 //
 // Every annotation task raised by any user, newest first, with status and
 // assignee. Admin roles can assign / re-assign a task to an annotator and reject
-// a pending one.
+// a pending one. Open tasks can also be ticked and assigned to one annotator in
+// one go, from the floating bar at the bottom.
 //
 // Wired to:
 //   GET   /annotation-jobs                   (ApproveAnnotations + admin role)
 //   GET   /annotation-jobs/annotators           (ListAnnotators)
 //   PATCH /annotation-jobs/{id}/assign       (ApproveAnnotations + admin role)
+//   POST  /annotation-jobs/bulk-assign       (ApproveAnnotations + admin role)
 //   PATCH /annotation-jobs/{id}/reject       (ApproveAnnotations + admin role)
 //
 // Click a row's thumbnail to open the review workspace, where notes, tags and
@@ -22,6 +24,7 @@ import {
   listAllAnnotations,
   listAnnotators,
   assignAnnotationJob,
+  assignAnnotationJobsBulk,
   rejectAnnotationJob,
   takeVideoUrl,
   ApiError,
@@ -62,6 +65,9 @@ const ASSIGNED_TO_PARAM: Record<AssignedFilter, boolean | undefined> = {
 };
 
 const PAGE_SIZE = 10;
+
+// Must match MAX_BULK_ASSIGN in the backend (annotation_jobs.py).
+const MAX_BULK_ASSIGN = 100;
 
 // Mirrors the backend rules: only open tasks can be (re)assigned, only
 // pending ones can be rejected.
@@ -134,6 +140,10 @@ export default function AllAnnotationsPage() {
   const [assignTarget, setAssignTarget] = useState<AnnotationJobListItem | null>(null);
   const [rejectTarget, setRejectTarget] = useState<AnnotationJobListItem | null>(null);
 
+  // Ticked jobs for bulk assign. Lives here so it survives paging.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
+
   // A short confirmation shown above the list after an assign / reject.
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -190,22 +200,94 @@ export default function AllAnnotationsPage() {
     setSkip(0);
   }
 
-  /** Swap one row for the server's updated copy, without refetching the page. */
-  function replaceItem(updated: AnnotationJobListItem) {
-    setItems((prev) => (prev ? prev.map((i) => (i.job_id === updated.job_id ? updated : i)) : prev));
-  }
+  /** Swap rows for the server's updated copies, without refetching the page. */
+  function replaceItems(updated: AnnotationJobListItem[]) {
+    if (updated.length === 0) return;
+    const byId = new Map(updated.map((u) => [u.job_id, u]));
+    setItems((prev) => (prev ? prev.map((i) => byId.get(i.job_id) ?? i) : prev));
 
-  function handleAssigned(updated: AnnotationJobListItem) {
-    replaceItem(updated);
-    setAssignTarget(null);
-    setNotice(`${displayJobId(updated.job_id)} assigned to ${updated.assigned_to_name ?? "the annotator"}.`);
+    // A task that is no longer open (e.g. just rejected) can't stay ticked.
+    const closed = updated.filter((u) => !canAssign(u.status)).map((u) => u.job_id);
+    if (closed.length > 0) {
+      setSelected((prev) => {
+        if (!closed.some((id) => prev.has(id))) return prev;
+        const next = new Set(prev);
+        closed.forEach((id) => next.delete(id));
+        return next;
+      });
+    }
   }
 
   function handleRejected(updated: AnnotationJobListItem) {
-    replaceItem(updated);
+    replaceItems([updated]);
     setRejectTarget(null);
     setNotice(`${displayJobId(updated.job_id)} was rejected.`);
   }
+
+  // ---- Single assign ----
+
+  async function submitSingleAssign(item: AnnotationJobListItem, annotator: Annotator) {
+    const updated = await assignAnnotationJob(item.job_id, annotator.user_id);
+    replaceItems([updated]);
+    setAssignTarget(null);
+    setNotice(`${displayJobId(updated.job_id)} assigned to ${updated.assigned_to_name ?? annotator.name}.`);
+  }
+
+  // ---- Selection / bulk assign ----
+
+  function toggleSelected(jobId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(jobId)) next.delete(jobId);
+      else if (next.size < MAX_BULK_ASSIGN) next.add(jobId);
+      return next;
+    });
+  }
+
+  const assignableOnPage = useMemo(
+    () => (items ?? []).filter((i) => canAssign(i.status)).map((i) => i.job_id),
+    [items],
+  );
+  const selectedOnPage = assignableOnPage.filter((id) => selected.has(id)).length;
+  const allOnPageSelected = assignableOnPage.length > 0 && selectedOnPage === assignableOnPage.length;
+  const someOnPageSelected = selectedOnPage > 0 && !allOnPageSelected;
+
+  function toggleAllOnPage() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allOnPageSelected) {
+        assignableOnPage.forEach((id) => next.delete(id));
+      } else {
+        for (const id of assignableOnPage) {
+          if (next.size >= MAX_BULK_ASSIGN) break;
+          next.add(id);
+        }
+      }
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelected(new Set());
+  }
+
+  async function submitBulkAssign(annotator: Annotator) {
+    const ids = Array.from(selected);
+    const res = await assignAnnotationJobsBulk(ids, annotator.user_id);
+
+    replaceItems(res.items);
+    setSelected(new Set());
+    setBulkAssignOpen(false);
+
+    const parts = [`${res.assigned} assigned to ${annotator.name}`];
+    if (res.skipped_unchanged > 0) parts.push(`${res.skipped_unchanged} already theirs`);
+    if (res.skipped_not_open > 0) parts.push(`${res.skipped_not_open} no longer open`);
+    if (res.not_found > 0) parts.push(`${res.not_found} not found`);
+    setNotice(parts.join(" · "));
+  }
+
+  const selectedCount = selected.size;
+  const selectionAtLimit = selectedCount >= MAX_BULK_ASSIGN;
 
   const rangeStart = total === 0 ? 0 : skip + 1;
   const rangeEnd = Math.min(skip + PAGE_SIZE, total);
@@ -214,11 +296,12 @@ export default function AllAnnotationsPage() {
   const hasFilters = Boolean(searchTerm) || status !== "all" || assigned !== "all";
 
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${selectedCount > 0 ? styles.pageWithBar : ""}`}>
       <div className={styles.header}>
         <h1 className={styles.title}>All Annotation Jobs</h1>
         <p className={styles.subtitle}>
           Every annotation task raised by users. Assign a task to an annotator, or reject one that is still pending.
+          Tick several open tasks to assign them to the same annotator in one go.
         </p>
       </div>
 
@@ -275,15 +358,29 @@ export default function AllAnnotationsPage() {
         </p>
       ) : (
         <>
-          <p className={styles.resultCount}>
-            {total} job{total === 1 ? "" : "s"}
-          </p>
+          <div className={styles.listToolbar}>
+            <label className={styles.selectAll}>
+              <RowCheckbox
+                checked={allOnPageSelected}
+                indeterminate={someOnPageSelected}
+                disabled={assignableOnPage.length === 0}
+                onChange={toggleAllOnPage}
+                label="Select all open jobs on this page"
+              />
+              <span>Select open jobs on this page</span>
+            </label>
+            <p className={styles.resultCount}>
+              {total} job{total === 1 ? "" : "s"}
+            </p>
+          </div>
 
           <ul className={`${styles.list} ${loading ? styles.listLoading : ""}`}>
             {items.map((item) => (
               <JobRow
                 key={item.job_id}
                 item={item}
+                selected={selected.has(item.job_id)}
+                onToggleSelected={() => toggleSelected(item.job_id)}
                 onPreview={() => setPreview(item)}
                 onAssign={() => setAssignTarget(item)}
                 onReject={() => setRejectTarget(item)}
@@ -317,6 +414,26 @@ export default function AllAnnotationsPage() {
         </>
       )}
 
+      {/* Floating bar: appears while jobs are ticked. */}
+      {selectedCount > 0 && (
+        <div className={styles.bulkBar} role="region" aria-label="Bulk actions">
+          <div className={styles.bulkBarInfo}>
+            <span className={styles.bulkBarCount}>
+              {selectedCount} job{selectedCount === 1 ? "" : "s"} selected
+            </span>
+            {selectionAtLimit && <span className={styles.bulkBarNote}>Maximum of {MAX_BULK_ASSIGN} per action</span>}
+          </div>
+          <div className={styles.bulkBarActions}>
+            <button type="button" className={styles.bulkBarClear} onClick={clearSelection}>
+              Clear
+            </button>
+            <button type="button" className={styles.bulkBarPrimary} onClick={() => setBulkAssignOpen(true)}>
+              Assign selected
+            </button>
+          </div>
+        </div>
+      )}
+
       {preview && (
         <AnnotationReviewModal
           target={preview}
@@ -329,7 +446,26 @@ export default function AllAnnotationsPage() {
         />
       )}
       {assignTarget && (
-        <AssignModal item={assignTarget} onClose={() => setAssignTarget(null)} onAssigned={handleAssigned} />
+        <AssignModal
+          title={`${assignTarget.assigned_to_name ? "Reassign" : "Assign"} annotation job`}
+          subtitle={assignTarget.sentence}
+          confirmLabel={assignTarget.assigned_to_name ? "Reassign" : "Assign"}
+          busyLabel="Assigning…"
+          currentAssigneeId={assignTarget.assigned_to_user_id}
+          onClose={() => setAssignTarget(null)}
+          onSubmit={(annotator) => submitSingleAssign(assignTarget, annotator)}
+        />
+      )}
+      {bulkAssignOpen && (
+        <AssignModal
+          title={`Assign ${selectedCount} annotation job${selectedCount === 1 ? "" : "s"}`}
+          subtitle="All selected tasks will be assigned to the annotator you pick. Tasks that are no longer open are skipped."
+          confirmLabel={`Assign ${selectedCount}`}
+          busyLabel="Assigning…"
+          currentAssigneeId={null}
+          onClose={() => setBulkAssignOpen(false)}
+          onSubmit={submitBulkAssign}
+        />
       )}
       {rejectTarget && (
         <RejectModal item={rejectTarget} onClose={() => setRejectTarget(null)} onRejected={handleRejected} />
@@ -338,20 +474,70 @@ export default function AllAnnotationsPage() {
   );
 }
 
-/** One annotation job: thumbnail, sentence, who raised it, status, assignee and actions. */
+/** A native checkbox that can show the "some selected" dash. */
+function RowCheckbox({
+  checked,
+  indeterminate = false,
+  disabled = false,
+  onChange,
+  label,
+  title,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+  disabled?: boolean;
+  onChange: () => void;
+  label: string;
+  title?: string;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate && !checked;
+  }, [indeterminate, checked]);
+
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      className={styles.checkbox}
+      checked={checked}
+      disabled={disabled}
+      onChange={onChange}
+      aria-label={label}
+      title={title}
+    />
+  );
+}
+
+/** One annotation job: checkbox, thumbnail, sentence, who raised it, status, assignee and actions. */
 function JobRow({
   item,
+  selected,
+  onToggleSelected,
   onPreview,
   onAssign,
   onReject,
 }: {
   item: AnnotationJobListItem;
+  selected: boolean;
+  onToggleSelected: () => void;
   onPreview: () => void;
   onAssign: () => void;
   onReject: () => void;
 }) {
+  const open = canAssign(item.status);
+
   return (
-    <li className={styles.row}>
+    <li className={`${styles.row} ${selected ? styles.rowSelected : ""}`}>
+      <RowCheckbox
+        checked={selected}
+        disabled={!open}
+        onChange={onToggleSelected}
+        label={`Select ${displayJobId(item.job_id)}`}
+        title={open ? undefined : "Only pending or in-progress tasks can be assigned"}
+      />
+
       <button
         type="button"
         className={styles.thumbButton}
@@ -462,22 +648,36 @@ function LazyThumb({ src }: { src: string }) {
   );
 }
 
-/** Pick an annotator and assign (or re-assign) the task to them. */
+/**
+ * Pick an annotator. Used for assigning one task (or re-assigning it) and for
+ * assigning many at once; the caller decides what happens on confirm.
+ * `onSubmit` should throw on failure; the message is shown in the modal.
+ * On success the caller closes the modal.
+ */
 function AssignModal({
-  item,
+  title,
+  subtitle,
+  confirmLabel,
+  busyLabel,
+  currentAssigneeId,
   onClose,
-  onAssigned,
+  onSubmit,
 }: {
-  item: AnnotationJobListItem;
+  title: string;
+  subtitle: string;
+  confirmLabel: string;
+  busyLabel: string;
+  /** Pre-selected annotator (single task only); picking them again does nothing. */
+  currentAssigneeId: string | null;
   onClose: () => void;
-  onAssigned: (updated: AnnotationJobListItem) => void;
+  onSubmit: (annotator: Annotator) => Promise<void>;
 }) {
   useModalBehavior(onClose);
 
   const [annotators, setAnnotators] = useState<Annotator[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(item.assigned_to_user_id);
+  const [selectedId, setSelectedId] = useState<string | null>(currentAssigneeId);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -509,17 +709,17 @@ function AssignModal({
     );
   }, [annotators, filter]);
 
-  const unchanged = selectedId === item.assigned_to_user_id;
+  const unchanged = selectedId === currentAssigneeId;
 
   async function submit() {
-    if (!selectedId || unchanged || saving) return;
+    const annotator = annotators?.find((a) => a.user_id === selectedId);
+    if (!annotator || unchanged || saving) return;
     setSaving(true);
     setSaveError(null);
     try {
-      const updated = await assignAnnotationJob(item.job_id, selectedId);
-      onAssigned(updated);
+      await onSubmit(annotator);
     } catch (err) {
-      setSaveError(errorMessage(err, "Couldn't assign this task."));
+      setSaveError(errorMessage(err, "Couldn't assign."));
       setSaving(false);
     }
   }
@@ -530,13 +730,13 @@ function AssignModal({
         className={`${styles.modal} ${styles.smallModal}`}
         role="dialog"
         aria-modal="true"
-        aria-label="Assign annotation job"
+        aria-label={title}
         onClick={(e) => e.stopPropagation()}
       >
         <header className={styles.modalHeader}>
           <div className={styles.modalHeaderMain}>
-            <div className={styles.modalTitle}>{item.assigned_to_name ? "Reassign" : "Assign"} annotation job</div>
-            <div className={styles.modalSentence}>{item.sentence}</div>
+            <div className={styles.modalTitle}>{title}</div>
+            <div className={styles.modalSentence}>{subtitle}</div>
           </div>
           <button type="button" className={styles.closeButton} onClick={onClose} aria-label="Close" title="Close (Esc)">
             ✕
@@ -566,7 +766,7 @@ function AssignModal({
                 ) : (
                   visible.map((annotator) => {
                     const isSelected = selectedId === annotator.user_id;
-                    const isCurrent = item.assigned_to_user_id === annotator.user_id;
+                    const isCurrent = currentAssigneeId === annotator.user_id;
                     return (
                       <li key={annotator.user_id}>
                         <button
@@ -606,7 +806,7 @@ function AssignModal({
             onClick={submit}
             disabled={!selectedId || unchanged || saving}
           >
-            {saving ? "Assigning…" : item.assigned_to_name ? "Reassign" : "Assign"}
+            {saving ? busyLabel : confirmLabel}
           </button>
         </footer>
       </div>

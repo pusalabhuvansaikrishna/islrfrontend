@@ -1315,3 +1315,58 @@
   font-size: 14px;
   padding: 24px 0;
 }
+/* Bulk-download checkbox beside a video tile. */
+.tileCheck {
+  align-self: center;
+}
+
+/* ---------- Bulk submit for annotation ---------- */
+
+.bulkSubmitBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.bulkSubmitCount {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bulkSubmitButton {
+  padding: 6px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bulkSubmitButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bulkSubmitButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.bulkMessageOk {
+  font-size: 13px;
+  color: #16a34a;
+}
+
+.bulkMessageError {
+  font-size: 13px;
+  color: var(--danger);
+}

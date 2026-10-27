@@ -3,6 +3,11 @@
   color: var(--text);
 }
 
+/* Leave room so the floating bulk bar never covers the pagination. */
+.pageWithBar {
+  padding-bottom: 96px;
+}
+
 .header {
   margin-bottom: 20px;
 }
@@ -65,9 +70,48 @@
 }
 
 .resultCount {
-  margin: 0 0 12px 0;
+  margin: 0;
   font-size: 13px;
   color: var(--text-muted);
+}
+
+/* ---------- Selection ---------- */
+
+.checkbox {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.checkbox:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.checkbox:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* "Select all" on the left, job count on the right, above the list. */
+.listToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px 0;
+}
+
+.selectAll {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
 }
 
 /* ---------- List ---------- */
@@ -95,6 +139,17 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+
+/* A ticked row gets an accent edge. */
+.rowSelected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Checkbox sits vertically centred beside the thumbnail. */
+.row > .checkbox {
+  align-self: center;
 }
 
 .thumbButton {
@@ -609,4 +664,95 @@
   color: var(--text-muted);
   border: 1px solid var(--border);
   border-radius: 999px;
+}
+
+/* ---------- Floating bulk bar ---------- */
+
+.bulkBar {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 900; /* below the modals (1000) */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-width: 360px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 14px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.bulkBarInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bulkBarCount {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.bulkBarNote {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.bulkBarActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.bulkBarClear {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bulkBarClear:hover {
+  border-color: var(--accent);
+}
+
+.bulkBarPrimary {
+  padding: 7px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bulkBarPrimary:hover {
+  opacity: 0.9;
+}
+
+.bulkBarClear:focus-visible,
+.bulkBarPrimary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+@media (max-width: 600px) {
+  .bulkBar {
+    min-width: 0;
+    width: calc(100vw - 32px);
+    flex-wrap: wrap;
+  }
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, type ReactNode } from "react";
 import styles from "./Sidebar.module.css";
 
 type IconProps = { className?: string };
@@ -13,6 +13,8 @@ type NavItem = {
   icon: (props: IconProps) => ReactNode;
   /** If set, only these roles see the item. */
   roles?: string[];
+  /** If set, these roles never see the item (applied after `roles`). */
+  hiddenForRoles?: string[];
 };
 
 const PRIVILEGED_ROLES = ["SuperAdmin", "Admin"];
@@ -22,20 +24,28 @@ const RECORDER_SECTION_ROLES = ["SuperAdmin", "RecorderAdmin"];
 const VIDEOS_SECTION_ROLES = ["SuperAdmin", "Admin", "Researcher", "RecorderAdmin"];
 // Roles that can see every annotation job raised by users (Annotation Management).
 const ANNOTATION_JOBS_ROLES = ["SuperAdmin", "Admin", "RecorderAdmin"];
+// Roles that can see the "Assigned" annotation tasks.
+const ASSIGNED_ANNOTATION_ROLES = ["Annotator"];
 
-// Visible to every role.
+// Roles that only get the "Assigned" annotation item and nothing else.
+const ANNOTATOR_ONLY_ROLES = ["Annotator"];
+
+// Where annotators land instead of the main dashboard.
+const ANNOTATOR_HOME = "/dashboard/annotations/assigned";
+
+// Visible to every role, except Annotator (who only sees "Assigned").
 const GENERAL_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: DashboardIcon },
-  { label: "Assigned Sessions", href: "/dashboard/assigned-sessions", icon: AssignedSessionsIcon },
-  { label: "Settings", href: "/dashboard/settings", icon: SettingsIcon },
+  { label: "Dashboard", href: "/dashboard", icon: DashboardIcon, hiddenForRoles: ANNOTATOR_ONLY_ROLES },
+  { label: "Assigned Sessions", href: "/dashboard/assigned-sessions", icon: AssignedSessionsIcon, hiddenForRoles: ANNOTATOR_ONLY_ROLES },
+  { label: "Settings", href: "/dashboard/settings", icon: SettingsIcon, hiddenForRoles: ANNOTATOR_ONLY_ROLES },
 ];
 
 // "Annotations" group: the logged-in user's own views.
 //  - Submitted: tasks I raised (same roles that can reach the Videos page)
-//  - Assigned:  tasks assigned to me (every role)
+//  - Assigned:  tasks assigned to me (Annotator role only)
 const ANNOTATION_ITEMS: NavItem[] = [
   { label: "Submitted", href: "/dashboard/annotations/submitted", icon: AnnotationIcon, roles: VIDEOS_SECTION_ROLES },
-  { label: "Assigned", href: "/dashboard/annotations/assigned", icon: MyAnnotationJobsIcon },
+  { label: "Assigned", href: "/dashboard/annotations/assigned", icon: MyAnnotationJobsIcon, roles: ASSIGNED_ANNOTATION_ROLES },
 ];
 
 // "Annotation Management" group: SuperAdmin, Admin and RecorderAdmin only.
@@ -69,19 +79,39 @@ const RESTRICTED_ITEMS: NavItem[] = [
 
 export default function Sidebar({ role }: { role: string }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  // Annotators don't get the main dashboard: after login (or any visit to
+  // /dashboard) send them straight to their Assigned page. `replace` keeps the
+  // Back button from bouncing them between the two.
+  useEffect(() => {
+    if (ANNOTATOR_ONLY_ROLES.includes(role) && pathname === "/dashboard") {
+      router.replace(ANNOTATOR_HOME);
+    }
+  }, [role, pathname, router]);
+
   const canSeeRestricted = PRIVILEGED_ROLES.includes(role);
   const canSeeRecorderSection = RECORDER_SECTION_ROLES.includes(role);
   const canSeeVideosSection = VIDEOS_SECTION_ROLES.includes(role);
   const canSeeAnnotationJobs = ANNOTATION_JOBS_ROLES.includes(role);
-  const annotationItems = ANNOTATION_ITEMS.filter((item) => !item.roles || item.roles.includes(role));
+  const isVisible = (item: NavItem) =>
+    (!item.roles || item.roles.includes(role)) &&
+    !(item.hiddenForRoles && item.hiddenForRoles.includes(role));
+  const generalItems = GENERAL_ITEMS.filter(isVisible);
+  const annotationItems = ANNOTATION_ITEMS.filter(isVisible);
 
   return (
     <nav className={styles.sidebar} aria-label="Dashboard navigation">
-      <NavList items={GENERAL_ITEMS} pathname={pathname} />
+      {generalItems.length > 0 && <NavList items={generalItems} pathname={pathname} />}
 
-      <div className={styles.divider} role="separator" />
-      <p className={styles.groupLabel}>Annotations</p>
-      <NavList items={annotationItems} pathname={pathname} />
+      {/* Hide the whole group when the role has no items in it. */}
+      {annotationItems.length > 0 && (
+        <>
+          {generalItems.length > 0 && <div className={styles.divider} role="separator" />}
+          <p className={styles.groupLabel}>Annotations</p>
+          <NavList items={annotationItems} pathname={pathname} />
+        </>
+      )}
 
       {canSeeAnnotationJobs && (
         <>

@@ -13,13 +13,18 @@
 //   - notes / tags / translations on the right, with one-click tag suggestions
 //
 // "Submit for annotation" (POST /videos/{id}/annotation-jobs) is available on
-// every video tile and in the modal's side panel.
+// every video tile and in the modal's side panel. When videos are ticked, the
+// floating bar at the bottom (BulkDownloadBar) offers "Download ZIP" and
+// "Submit for annotation" (POST /videos/annotation-jobs/bulk) for all of them.
 //
 // Filters: sentence text, take validity, CSV file (= Record job, filtered on the
 // server so paging stays correct) and annotation status (client-side, this page only).
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import styles from "./page.module.css";
+import SelectCheckbox from "./SelectCheckbox";
+import BulkDownloadBar, { type BulkMessage } from "./BulkDownloadBar";
+import { useVideoSelection } from "./useVideoSelection";
 import {
   searchTakeVideos,
   listVideoJobs,
@@ -29,6 +34,7 @@ import {
   addVideoTranslation,
   getTranslationKeys,
   submitVideoForAnnotation,
+  submitVideosForAnnotation,
   downloadTakeVideo,
   ApiError,
   type JobStatus,
@@ -71,6 +77,9 @@ const PAGE_SIZE = 5;
 
 // Value of the CSV dropdown when no file is selected.
 const ALL_CSV = "all";
+
+// How long the bulk-submit result stays in the floating bar once nothing is selected.
+const BULK_MESSAGE_MS = 6000;
 
 function displayJobId(jobId: string): string {
   return `JOB-${jobId.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
@@ -117,6 +126,8 @@ function tagHue(name: string): number {
   }
   return h % 360;
 }
+
+type Selection = ReturnType<typeof useVideoSelection>;
 
 type VideoChange = (video: TakeVideo) => Partial<TakeVideo>;
 
@@ -328,6 +339,9 @@ export default function VideosPage() {
   const [annotation, setAnnotation] = useState<AnnotationFilter>("all");
   const [skip, setSkip] = useState(0);
 
+  // Selected videos for bulk download / bulk submit. Lives here so it survives paging.
+  const selection = useVideoSelection();
+
   // CSV file filter: the selected file's job_id (or ALL_CSV), plus the list for the dropdown.
   const [jobId, setJobId] = useState<string>(ALL_CSV);
   const [csvFiles, setCsvFiles] = useState<VideoJob[]>([]);
@@ -346,6 +360,10 @@ export default function VideosPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [submitting, setSubmitting] = useState<Set<string>>(new Set());
   const [submitErrors, setSubmitErrors] = useState<Record<string, string>>({});
+
+  // Bulk "Submit for annotation" (button lives in the floating BulkDownloadBar).
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState<BulkMessage | null>(null);
 
   // Load the CSV files once, for the dropdown.
   useEffect(() => {
@@ -402,6 +420,13 @@ export default function VideosPage() {
       cancelled = true;
     };
   }, [searchTerm, validity, jobId, skip, reloadKey]);
+
+  // Let the bulk-submit result disappear by itself after a few seconds.
+  useEffect(() => {
+    if (!bulkMessage) return;
+    const handle = setTimeout(() => setBulkMessage(null), BULK_MESSAGE_MS);
+    return () => clearTimeout(handle);
+  }, [bulkMessage]);
 
   function handleValidityChange(next: ValidityFilter) {
     if (next === validity) return;
@@ -474,6 +499,37 @@ export default function VideosPage() {
         next.delete(videoId);
         return next;
       });
+    }
+  }
+
+  // ---- Bulk submit for annotation ----
+
+  async function handleBulkSubmit() {
+    const ids = selection.ids;
+    if (ids.length === 0 || bulkBusy) return;
+
+    setBulkBusy(true);
+    setBulkMessage(null);
+    try {
+      const res = await submitVideosForAnnotation(ids);
+
+      // Show the new / existing requests on the videos that are on this page.
+      for (const item of res.items) {
+        if (item.annotation) {
+          const annotation = item.annotation;
+          updateVideo(item.video_id, () => ({ annotation }));
+        }
+      }
+
+      const parts = [`${res.created} submitted`];
+      if (res.skipped_active > 0) parts.push(`${res.skipped_active} already in progress`);
+      if (res.not_found > 0) parts.push(`${res.not_found} not found`);
+      setBulkMessage({ kind: "ok", text: parts.join(" · ") });
+      selection.clear();
+    } catch (err) {
+      setBulkMessage({ kind: "error", text: submitErrorMessage(err) });
+    } finally {
+      setBulkBusy(false);
     }
   }
 
@@ -622,6 +678,7 @@ export default function VideosPage() {
                   group={group}
                   progress={progressByTranscription.get(group.transcription.transcription_id)}
                   submit={submitControl}
+                  selection={selection}
                   onOpenVideo={(video) => setOpenId(video.video_id)}
                 />
               ))}
@@ -654,6 +711,16 @@ export default function VideosPage() {
         </>
       )}
 
+      {/* Floating bar: Download ZIP + Submit for annotation for every ticked video. */}
+      <BulkDownloadBar
+        videoIds={selection.ids}
+        onClear={selection.clear}
+        onSubmitForAnnotation={() => void handleBulkSubmit()}
+        submitBusy={bulkBusy}
+        message={bulkMessage}
+        onDismissMessage={() => setBulkMessage(null)}
+      />
+
       {openEntry && (
         <ReviewModal
           entry={openEntry}
@@ -675,11 +742,13 @@ function SentenceGroup({
   group,
   progress,
   submit,
+  selection,
   onOpenVideo,
 }: {
   group: TranscriptionGroup;
   progress: { done: number; total: number } | undefined;
   submit: SubmitControl;
+  selection: Selection;
   onOpenVideo: (video: TakeVideo) => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -715,7 +784,7 @@ function SentenceGroup({
       {!collapsed && (
         <div className={styles.takes}>
           {group.takes.map((take) => (
-            <TakeRow key={take.take_id} take={take} submit={submit} onOpenVideo={onOpenVideo} />
+            <TakeRow key={take.take_id} take={take} submit={submit} selection={selection} onOpenVideo={onOpenVideo} />
           ))}
         </div>
       )}
@@ -745,15 +814,28 @@ function SessionBadge({ take }: { take: VideoTake }) {
 function TakeRow({
   take,
   submit,
+  selection,
   onOpenVideo,
 }: {
   take: VideoTake;
   submit: SubmitControl;
+  selection: Selection;
   onOpenVideo: (video: TakeVideo) => void;
 }) {
+  const videoIds = take.videos.map((v) => v.video_id);
+  const { all, some } = selection.groupState(videoIds);
+
   return (
     <div className={`${styles.take} ${take.is_valid ? "" : styles.takeInvalid}`}>
       <div className={styles.takeHeader}>
+        {videoIds.length > 0 && (
+          <SelectCheckbox
+            checked={all}
+            indeterminate={some}
+            onChange={() => selection.setMany(videoIds, !all)}
+            label={`Select all videos in take ${take.take_number}`}
+          />
+        )}
         <span className={styles.takeTitle}>Take {take.take_number}</span>
         <span className={`${styles.badge} ${take.is_valid ? styles.badgeValid : styles.badgeInvalid}`}>
           {take.is_valid ? "Valid" : "Invalid"}
@@ -769,7 +851,7 @@ function TakeRow({
       ) : (
         <div className={styles.tiles}>
           {take.videos.map((v) => (
-            <VideoTile key={v.video_id} take={take} video={v} submit={submit} onOpen={() => onOpenVideo(v)} />
+            <VideoTile key={v.video_id} take={take} video={v} submit={submit} selection={selection} onOpen={() => onOpenVideo(v)} />
           ))}
         </div>
       )}
@@ -828,11 +910,13 @@ function VideoTile({
   take,
   video,
   submit,
+  selection,
   onOpen,
 }: {
   take: VideoTake;
   video: TakeVideo;
   submit: SubmitControl;
+  selection: Selection;
   onOpen: () => void;
 }) {
   const notes = video.notes.length;
@@ -843,6 +927,12 @@ function VideoTile({
 
   return (
     <div className={styles.tileWrap}>
+      <SelectCheckbox
+        className={styles.tileCheck}
+        checked={selection.isSelected(video.video_id)}
+        onChange={() => selection.toggle(video.video_id)}
+        label={`Select ${video.angle} video`}
+      />
       <button type="button" className={styles.tile} onClick={onOpen} aria-label={`Open ${video.angle} video`}>
         <LazyThumb src={takeVideoUrl(video)} />
         <span className={styles.angleLabel}>{video.angle}</span>

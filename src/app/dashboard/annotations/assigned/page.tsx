@@ -3,19 +3,26 @@
 // Location: src/app/dashboard/annotations/assigned/page.tsx
 //
 // Annotation tasks assigned to the logged-in user, newest first, with status
-// and who raised each one. Read-only: assigning and rejecting happen on the
-// "All Annotation Jobs" page.
+// and who raised each one.
 // Wired to GET /assigned-annotations (needs "SubmitforAnnotation"). The
 // backend scopes the list to the caller, so no user is sent from here.
 //
 // Click a row's thumbnail to open the review workspace, where notes, tags and
-// translations can be added (needs "AnnotateVideo").
+// translations can be added (needs "AnnotateVideo"). The workspace shows only
+// the video that was assigned (singleVideo): no other takes or angles.
+//
+// Task lifecycle (only the assignee can do this, enforced by the backend):
+//   - Opening a PENDING task  -> POST /videos/annotation-jobs/{id}/start    (PROCESSING)
+//   - "Mark as done" button   -> POST /videos/annotation-jobs/{id}/complete (COMPLETED)
+// Adding notes/tags/translations does not change the status by itself.
 
 import { useEffect, useRef, useState } from "react";
 import styles from "./page.module.css";
 import AnnotationReviewModal from "@/components/annotations/AnnotationReviewModal";
 import {
   listMyAssignedAnnotations,
+  startAnnotationJob,
+  completeAnnotationJob,
   takeVideoUrl,
   ApiError,
   type JobStatus,
@@ -70,6 +77,13 @@ function loadErrorMessage(err: unknown): string {
   return err instanceof Error && err.message ? err.message : "Couldn't load your assigned annotations.";
 }
 
+// Show what the backend actually said. A 403 here can mean either "this task
+// isn't assigned to you" or "your role lacks AnnotateVideo", and the backend's
+// own message tells them apart.
+function actionErrorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message ? err.message : fallback;
+}
+
 export default function AssignedAnnotationsPage() {
   // Raw text box value vs. the debounced term actually sent to the API.
   const [searchInput, setSearchInput] = useState("");
@@ -82,8 +96,11 @@ export default function AssignedAnnotationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // The row whose video is open in the preview (null = closed).
+  // The row whose video is open in the review workspace (null = closed).
   const [preview, setPreview] = useState<AnnotationJobListItem | null>(null);
+  // Errors from starting / completing a task, and the "Mark as done" progress.
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [completing, setCompleting] = useState(false);
 
   // Debounce the search box into searchTerm (and go back to page 1).
   useEffect(() => {
@@ -131,11 +148,56 @@ export default function AssignedAnnotationsPage() {
     setSkip(0);
   }
 
+  /** Reflect a new task status in the list row and in the open workspace. */
+  function applyStatus(jobId: string, next: JobStatus) {
+    setItems((prev) => (prev ? prev.map((i) => (i.job_id === jobId ? { ...i, status: next } : i)) : prev));
+    setPreview((prev) => (prev && prev.job_id === jobId ? { ...prev, status: next } : prev));
+  }
+
+  /** Open the workspace; a PENDING task moves to "In progress" at this moment. */
+  async function openPreview(item: AnnotationJobListItem) {
+    setPreview(item);
+    setActionError(null);
+    if (item.status !== "PENDING") return;
+
+    try {
+      const res = await startAnnotationJob(item.job_id);
+      applyStatus(item.job_id, res.status);
+    } catch (err) {
+      setActionError(actionErrorMessage(err, "Couldn't mark this task as in progress."));
+    }
+  }
+
+  function closePreview() {
+    setPreview(null);
+    setActionError(null);
+  }
+
+  /** The annotator confirms they are finished. */
+  async function markDone() {
+    if (!preview || completing) return;
+    if (!window.confirm("Mark this task as done? You won't be able to reopen it as pending.")) return;
+
+    setCompleting(true);
+    setActionError(null);
+    try {
+      const res = await completeAnnotationJob(preview.job_id);
+      applyStatus(preview.job_id, res.status);
+      closePreview();
+    } catch (err) {
+      setActionError(actionErrorMessage(err, "Couldn't mark this task as done."));
+    } finally {
+      setCompleting(false);
+    }
+  }
+
   const rangeStart = total === 0 ? 0 : skip + 1;
   const rangeEnd = Math.min(skip + PAGE_SIZE, total);
   const hasPrev = skip > 0;
   const hasNext = skip + PAGE_SIZE < total;
   const hasFilters = Boolean(searchTerm) || status !== "all";
+
+  const canMarkDone = preview !== null && (preview.status === "PENDING" || preview.status === "PROCESSING");
 
   return (
     <div className={styles.page}>
@@ -186,7 +248,7 @@ export default function AssignedAnnotationsPage() {
 
           <ul className={`${styles.list} ${loading ? styles.listLoading : ""}`}>
             {items.map((item) => (
-              <AssignedRow key={item.job_id} item={item} onPreview={() => setPreview(item)} />
+              <AssignedRow key={item.job_id} item={item} onPreview={() => openPreview(item)} />
             ))}
           </ul>
 
@@ -219,12 +281,21 @@ export default function AssignedAnnotationsPage() {
       {preview && (
         <AnnotationReviewModal
           target={preview}
+          singleVideo
           extraBadges={
-            <span className={`${styles.badge} ${STATUS_BADGE_CLASS[preview.status]}`}>
-              Task: {STATUS_LABEL[preview.status]}
-            </span>
+            <>
+              <span className={`${styles.badge} ${STATUS_BADGE_CLASS[preview.status]}`}>
+                Task: {STATUS_LABEL[preview.status]}
+              </span>
+              {canMarkDone && (
+                <button type="button" className={styles.doneButton} onClick={markDone} disabled={completing}>
+                  {completing ? "Saving…" : "Mark as done"}
+                </button>
+              )}
+              {actionError && <span className={styles.actionError}>{actionError}</span>}
+            </>
           }
-          onClose={() => setPreview(null)}
+          onClose={closePreview}
         />
       )}
     </div>

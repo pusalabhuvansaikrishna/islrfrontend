@@ -888,6 +888,33 @@ export async function downloadTakeVideo(
   a.remove();
 }
 
+/**
+ * Downloads several videos as one ZIP.
+ *
+ * Two steps: POST /videos/download-zip/ticket (authenticated, goes through the
+ * usual refresh-on-401) returns a short-lived `download_url`; then the browser
+ * itself follows that link, so the ZIP streams to disk and nothing is buffered
+ * in JS memory. Like downloadTakeVideo(), the link navigation needs the auth
+ * cookie to be sent to the API (SameSite=Lax or None).
+ *
+ * Errors surface as ApiError (e.g. 403 without permission, 422 if too many ids).
+ */
+export async function downloadVideosZip(videoIds: string[]): Promise<void> {
+  const { download_url } = await apiFetch<{ download_url: string }>("/videos/download-zip/ticket", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ video_ids: videoIds }),
+  });
+
+  const a = document.createElement("a");
+  a.href = `${BASE_URL}${download_url}`;
+  a.rel = "noopener";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 // ---------------- Videos: notes, tags and translations ----------------
 //
 // All three are attached to a single VIDEO (one camera angle of a take).
@@ -998,6 +1025,55 @@ export async function submitVideoForAnnotation(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(assignedToUserId ? { assigned_to_user_id: assignedToUserId } : {}),
+  });
+}
+
+/** What happened to one video in a bulk submit. */
+export type BulkAnnotationResult = "created" | "skipped_active" | "not_found";
+
+export type BulkAnnotationItem = {
+  video_id: string;
+  result: BulkAnnotationResult;
+  /** The new request (created) or the existing open one (skipped_active); null for not_found. */
+  annotation: VideoAnnotationStatus | null;
+};
+
+/** Mirrors the backend's BulkAnnotationJobsOut. */
+export type BulkAnnotationResponse = {
+  /** Distinct ids received. */
+  requested: number;
+  created: number;
+  skipped_active: number;
+  not_found: number;
+  /** Same order as the request (duplicates removed). */
+  items: BulkAnnotationItem[];
+};
+
+/**
+ * Raises annotation tasks for several videos in one request.
+ *
+ * Backend route: POST /videos/annotation-jobs/bulk, JSON body
+ * { video_ids, assigned_to_user_id? } (max 100 ids). Each video gets its own
+ * PENDING annotation job. Videos that already have a PENDING / PROCESSING job
+ * are reported as "skipped_active" and unknown ids as "not_found"; neither
+ * fails the request. Requires the "SubmitforAnnotation" permission.
+ *
+ * Errors worth surfacing:
+ *   - 403: caller lacks "SubmitforAnnotation"
+ *   - 404: the assignee is missing / inactive
+ *   - 422: more than 100 ids, or the assignee lacks "AnnotateVideo"
+ */
+export async function submitVideosForAnnotation(
+  videoIds: string[],
+  assignedToUserId?: string
+): Promise<BulkAnnotationResponse> {
+  return apiFetch<BulkAnnotationResponse>("/videos/annotation-jobs/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      video_ids: videoIds,
+      ...(assignedToUserId ? { assigned_to_user_id: assignedToUserId } : {}),
+    }),
   });
 }
 
@@ -1138,6 +1214,58 @@ export async function listAllAnnotations(
   );
 }
 
+// ---------------- Annotation work (the assigned annotator): start and finish ----------------
+//
+// Only the person a task is assigned to can call these (the backend returns
+// 403 for anyone else), and they need the "AnnotateVideo" permission. Adding
+// notes / tags / translations never changes a task's status by itself.
+
+/** Mirrors the backend's AnnotationJobStateOut. */
+export type AnnotationJobState = {
+  job_id: string;
+  video_id: string;
+  /** The task's status after the call. */
+  status: JobStatus;
+  /** false when the call was a harmless repeat / no-op (e.g. already started). */
+  changed: boolean;
+};
+
+/**
+ * Called when the assignee opens their task: PENDING becomes PROCESSING.
+ * Any other status is left alone, so it is safe to call every time the task
+ * is opened.
+ *
+ * Backend route: POST /videos/annotation-jobs/{job_id}/start. Requires
+ * "AnnotateVideo".
+ *
+ * Errors worth surfacing: 403 (the task isn't assigned to you), 404 (task
+ * not found).
+ */
+export async function startAnnotationJob(jobId: string): Promise<AnnotationJobState> {
+  return apiFetch<AnnotationJobState>(`/videos/annotation-jobs/${jobId}/start`, {
+    method: "POST",
+  });
+}
+
+/**
+ * The assignee confirms they are done: the task becomes COMPLETED. Calling it
+ * again on a completed task just returns it unchanged.
+ *
+ * Backend route: POST /videos/annotation-jobs/{job_id}/complete. Requires
+ * "AnnotateVideo".
+ *
+ * Errors worth surfacing:
+ *   - 403: the task isn't assigned to you
+ *   - 404: task not found
+ *   - 409: the task was rejected (FAILED) and can't be completed
+ *   - 422: nothing added yet -- add at least one note, tag or translation first
+ */
+export async function completeAnnotationJob(jobId: string): Promise<AnnotationJobState> {
+  return apiFetch<AnnotationJobState>(`/videos/annotation-jobs/${jobId}/complete`, {
+    method: "POST",
+  });
+}
+
 // ---------------- Annotation management (admin roles): annotators, assign, reject ----------------
 
 /** An annotator a task can be assigned to. */
@@ -1179,6 +1307,42 @@ export async function assignAnnotationJob(
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ assigned_to_user_id: assignedToUserId }),
+  });
+}
+
+/** Mirrors the backend's BulkAssignOut. */
+export type BulkAssignResult = {
+  /** Tasks assigned / re-assigned by this request. */
+  assigned: number;
+  /** Skipped: already COMPLETED or FAILED (rejected). */
+  skipped_not_open: number;
+  /** Skipped: already assigned to this annotator. */
+  skipped_unchanged: number;
+  /** Ids that aren't annotation jobs. */
+  not_found: number;
+  /** Current state of every task that was found (assigned or skipped). */
+  items: AnnotationJobListItem[];
+};
+
+/**
+ * Assigns (or re-assigns) several open annotation tasks to one annotator.
+ *
+ * Backend route: POST /annotation-jobs/bulk-assign, JSON body
+ * { job_ids, assigned_to_user_id } (max 100 ids). Tasks that can't be
+ * assigned don't fail the request; they're counted in `skipped_not_open`,
+ * `skipped_unchanged` and `not_found`. Same access as assignAnnotationJob.
+ *
+ * Errors worth surfacing: 400 (no ids, or more than 100), 404 (the user isn't
+ * an active annotator).
+ */
+export async function assignAnnotationJobsBulk(
+  jobIds: string[],
+  assignedToUserId: string
+): Promise<BulkAssignResult> {
+  return apiFetch<BulkAssignResult>("/annotation-jobs/bulk-assign", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ job_ids: jobIds, assigned_to_user_id: assignedToUserId }),
   });
 }
 

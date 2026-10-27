@@ -1,0 +1,211 @@
+/* Styles for the bulk-action pieces. Uses the same theme variables as the Videos page. */
+
+.checkbox {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.checkbox:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.checkbox:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Checkbox placed as the first child of .tileWrap (the tile is a <button>,
+   so the checkbox sits beside it, never inside it). */
+.tileCheckbox {
+  align-self: center;
+}
+
+/* "Select all" checkbox + label in the take header. */
+.takeSelect {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+/* Highlight a tile row whose video is selected. */
+.tileSelected {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+/* ---------- Floating action bar ---------- */
+
+.bar {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 900; /* below the playback modal (1000) */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-width: 360px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 14px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.barInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.barCount {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.barNote {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.barError {
+  font-size: 11px;
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
+/* Result of the last bulk "Submit for annotation". */
+.barMessageOk {
+  font-size: 11px;
+  color: #16a34a;
+  overflow-wrap: anywhere;
+}
+
+.barActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.barClear {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.barClear:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+/* Secondary action: accent outline, so it sits beside the filled Download button. */
+.barSubmit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.barSubmit:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.barDownload {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.barDownload:disabled,
+.barClear:disabled,
+.barSubmit:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.barDownload:focus-visible,
+.barClear:focus-visible,
+.barSubmit:focus-visible,
+.barDismiss:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Close button for the message-only state (nothing selected). */
+.barDismiss {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.barDismiss:hover {
+  border-color: var(--accent);
+}
+
+.barSpinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: barSpin 0.7s linear infinite;
+}
+
+@keyframes barSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 700px) {
+  .bar {
+    min-width: 0;
+    width: calc(100vw - 32px);
+    flex-wrap: wrap;
+  }
+
+  .barActions {
+    flex-wrap: wrap;
+  }
+}
