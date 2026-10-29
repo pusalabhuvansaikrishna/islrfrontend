@@ -842,6 +842,63 @@ export async function searchTakeVideos(
   );
 }
 
+// ---------------- Videos: "select all results" (filters instead of ids) ----------------
+//
+// Bulk actions (submit for annotation, download ZIP) accept either a list of
+// ids or the same filters GET /videos/search uses. With filters the SERVER
+// works out which videos match, so a whole CSV file or a whole search result
+// can be selected without ticking videos one by one, and without sending
+// thousands of ids.
+
+/** The filters a "select all" covers. Same meaning as the searchTakeVideos params. */
+export type VideoFilters = {
+  /** Case-insensitive substring match on the sentence text. */
+  q?: string;
+  /** true = valid takes only, false = invalid takes only. */
+  is_valid?: boolean;
+  /** Only sentences from this CSV file (= Record job). */
+  job_id?: string;
+  transcription_id?: string;
+  signer_id?: string;
+};
+
+/**
+ * What a bulk action applies to: videos ticked one by one (max 100), or
+ * "every video these filters match" (max `max_selectable`, see VideoCount).
+ */
+export type BulkTarget = { videoIds: string[] } | { filters: VideoFilters };
+
+/** Request body for the bulk endpoints: `video_ids` or `filters`, never both. */
+function bulkBody(target: BulkTarget): { video_ids: string[] } | { filters: VideoFilters } {
+  return "filters" in target ? { filters: target.filters } : { video_ids: target.videoIds };
+}
+
+/** How many VIDEOS (not sentences) a set of filters matches. */
+export type VideoCount = {
+  video_count: number;
+  /** Largest set a "select all" action may cover. */
+  max_selectable: number;
+};
+
+/**
+ * Number of videos the filters match, for "Select all N videos in these
+ * results".
+ *
+ * Backend route: GET /videos/search/video-count (same filters as
+ * /videos/search). Requires "ReadDataset".
+ */
+export async function getVideoCount(filters: VideoFilters = {}): Promise<VideoCount> {
+  return apiFetch<VideoCount>(
+    `/videos/search/video-count${toQueryString({
+      q: filters.q,
+      is_valid: filters.is_valid === undefined ? undefined : String(filters.is_valid),
+      job_id: filters.job_id,
+      transcription_id: filters.transcription_id,
+      signer_id: filters.signer_id,
+    })}`
+  );
+}
+
 /** Full URL for a video's `stream_url`, ready for a <video src> (use crossOrigin="use-credentials"). */
 export function takeVideoUrl(video: Pick<TakeVideo, "stream_url">): string {
   return `${BASE_URL}${video.stream_url}`;
@@ -891,19 +948,24 @@ export async function downloadTakeVideo(
 /**
  * Downloads several videos as one ZIP.
  *
+ * Pass `{ videoIds }` for videos ticked one by one (max 100), or
+ * `{ filters }` for "select all results": every video the filters match (the
+ * server resolves them; max `max_selectable` from getVideoCount).
+ *
  * Two steps: POST /videos/download-zip/ticket (authenticated, goes through the
  * usual refresh-on-401) returns a short-lived `download_url`; then the browser
  * itself follows that link, so the ZIP streams to disk and nothing is buffered
  * in JS memory. Like downloadTakeVideo(), the link navigation needs the auth
  * cookie to be sent to the API (SameSite=Lax or None).
  *
- * Errors surface as ApiError (e.g. 403 without permission, 422 if too many ids).
+ * Errors surface as ApiError (e.g. 403 without permission, 404 if nothing
+ * matches, 422 if too many videos).
  */
-export async function downloadVideosZip(videoIds: string[]): Promise<void> {
+export async function downloadVideosZip(target: BulkTarget): Promise<void> {
   const { download_url } = await apiFetch<{ download_url: string }>("/videos/download-zip/ticket", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ video_ids: videoIds }),
+    body: JSON.stringify(bulkBody(target)),
   });
 
   const a = document.createElement("a");
@@ -1040,7 +1102,7 @@ export type BulkAnnotationItem = {
 
 /** Mirrors the backend's BulkAnnotationJobsOut. */
 export type BulkAnnotationResponse = {
-  /** Distinct ids received. */
+  /** Distinct ids received, or videos matched by the filters. */
   requested: number;
   created: number;
   skipped_active: number;
@@ -1052,26 +1114,31 @@ export type BulkAnnotationResponse = {
 /**
  * Raises annotation tasks for several videos in one request.
  *
+ * Pass `{ videoIds }` for videos ticked one by one (max 100), or
+ * `{ filters }` for "select all results": every video the filters match (the
+ * server resolves them; max `max_selectable` from getVideoCount).
+ *
  * Backend route: POST /videos/annotation-jobs/bulk, JSON body
- * { video_ids, assigned_to_user_id? } (max 100 ids). Each video gets its own
+ * { video_ids | filters, assigned_to_user_id? }. Each video gets its own
  * PENDING annotation job. Videos that already have a PENDING / PROCESSING job
  * are reported as "skipped_active" and unknown ids as "not_found"; neither
  * fails the request. Requires the "SubmitforAnnotation" permission.
  *
  * Errors worth surfacing:
  *   - 403: caller lacks "SubmitforAnnotation"
- *   - 404: the assignee is missing / inactive
- *   - 422: more than 100 ids, or the assignee lacks "AnnotateVideo"
+ *   - 404: the assignee is missing / inactive, or the filters match nothing
+ *   - 422: more than 100 ids, more videos than a select-all allows, or the
+ *          assignee lacks "AnnotateVideo"
  */
 export async function submitVideosForAnnotation(
-  videoIds: string[],
+  target: BulkTarget,
   assignedToUserId?: string
 ): Promise<BulkAnnotationResponse> {
   return apiFetch<BulkAnnotationResponse>("/videos/annotation-jobs/bulk", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      video_ids: videoIds,
+      ...bulkBody(target),
       ...(assignedToUserId ? { assigned_to_user_id: assignedToUserId } : {}),
     }),
   });

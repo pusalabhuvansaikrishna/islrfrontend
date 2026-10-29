@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { downloadVideosZip } from "@/lib/api";
-import { MAX_BULK_VIDEOS } from "./useVideoSelection";
+import { MAX_BULK_VIDEOS, type FilterSelection } from "./useVideoSelection";
 import styles from "./BulkDownload.module.css";
 
 export type BulkMessage = { kind: "ok" | "error"; text: string };
 
 type Props = {
+  /** Videos ticked one by one. */
   videoIds: string[];
+  /** Set when "Select all N videos in these results" is on; takes over from videoIds. */
+  matching: FilterSelection | null;
   onClear: () => void;
   /** Raise an annotation task for every selected video. */
   onSubmitForAnnotation: () => void;
@@ -21,6 +24,7 @@ type Props = {
 
 export default function BulkDownloadBar({
   videoIds,
+  matching,
   onClear,
   onSubmitForAnnotation,
   submitBusy,
@@ -30,7 +34,8 @@ export default function BulkDownloadBar({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const hasSelection = videoIds.length > 0;
+  const count = matching ? matching.count : videoIds.length;
+  const hasSelection = count > 0;
 
   // Nothing selected and nothing to report: hide the bar.
   if (!hasSelection && !message) return null;
@@ -39,7 +44,7 @@ export default function BulkDownloadBar({
     setBusy(true);
     setError(null);
     try {
-      await downloadVideosZip(videoIds);
+      await downloadVideosZip(matching ? { filters: matching.filters } : { videoIds });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Download failed");
     } finally {
@@ -48,7 +53,7 @@ export default function BulkDownloadBar({
     }
   }
 
-  const atLimit = videoIds.length >= MAX_BULK_VIDEOS;
+  const atLimit = !matching && videoIds.length >= MAX_BULK_VIDEOS;
   const anyBusy = busy || submitBusy;
 
   return (
@@ -56,10 +61,14 @@ export default function BulkDownloadBar({
       <div className={styles.barInfo}>
         {hasSelection && (
           <span className={styles.barCount}>
-            {videoIds.length} video{videoIds.length === 1 ? "" : "s"} selected
+            {count} video{count === 1 ? "" : "s"} selected{matching ? " (all results)" : ""}
           </span>
         )}
-        {hasSelection && atLimit && <span className={styles.barNote}>Maximum of {MAX_BULK_VIDEOS} per action</span>}
+        {hasSelection && atLimit && (
+          <span className={styles.barNote}>
+            Max {MAX_BULK_VIDEOS} ticked one by one. Use “Select all” for more.
+          </span>
+        )}
         {error && <span className={styles.barError}>{error}</span>}
         {message && (
           <span className={message.kind === "error" ? styles.barError : styles.barMessageOk}>{message.text}</span>

@@ -13,9 +13,16 @@
 //   - notes / tags / translations on the right, with one-click tag suggestions
 //
 // "Submit for annotation" (POST /videos/{id}/annotation-jobs) is available on
-// every video tile and in the modal's side panel. When videos are ticked, the
-// floating bar at the bottom (BulkDownloadBar) offers "Download ZIP" and
-// "Submit for annotation" (POST /videos/annotation-jobs/bulk) for all of them.
+// every video tile and in the modal's side panel.
+//
+// Selecting videos for bulk actions:
+//   - tick videos one by one (or a whole take), max 100
+//   - "Select this page" ticks everything visible
+//   - "Select all N videos in these results" selects every video the current
+//     filters match (sentence text, validity, CSV file), across all pages. The
+//     page sends the filters, not ids, and the server resolves them.
+// The floating bar at the bottom (BulkDownloadBar) then offers "Download ZIP"
+// and "Submit for annotation" (POST /videos/annotation-jobs/bulk) for the selection.
 //
 // Filters: sentence text, take validity, CSV file (= Record job, filtered on the
 // server so paging stays correct) and annotation status (client-side, this page only).
@@ -33,6 +40,7 @@ import {
   addVideoTags,
   addVideoTranslation,
   getTranslationKeys,
+  getVideoCount,
   submitVideoForAnnotation,
   submitVideosForAnnotation,
   downloadTakeVideo,
@@ -47,6 +55,8 @@ import {
   type VideoTag,
   type Translation,
   type TranslationKey,
+  type VideoCount,
+  type VideoFilters,
 } from "@/lib/api";
 
 type ValidityFilter = "all" | "valid" | "invalid";
@@ -331,6 +341,82 @@ function DownloadButton({
   );
 }
 
+/**
+ * The row above the results with the select-all controls:
+ *  - "Select this page": ticks every video that is visible
+ *  - "Select all N videos in these results": every video the current filters
+ *    match, on every page (the server resolves the filters)
+ * Once "all results" is on, it shows that instead, with a link to clear it.
+ */
+function SelectionToolbar({
+  selection,
+  visibleIds,
+  matchCount,
+  matchFilters,
+  annotationFiltered,
+}: {
+  selection: Selection;
+  visibleIds: string[];
+  matchCount: VideoCount | null;
+  matchFilters: VideoFilters;
+  annotationFiltered: boolean;
+}) {
+  if (selection.matching) {
+    const n = selection.matching.count;
+    return (
+      <div className={styles.selectBar}>
+        <span>
+          All <strong>{n}</strong> video{n === 1 ? "" : "s"} in these results {n === 1 ? "is" : "are"} selected.
+        </span>
+        <button type="button" className={styles.selectLink} onClick={() => selection.clear()}>
+          Clear selection
+        </button>
+      </div>
+    );
+  }
+
+  const { all, some } = selection.groupState(visibleIds);
+  const total = matchCount?.video_count ?? 0;
+  const tooMany = !!matchCount && total > matchCount.max_selectable;
+  // Only offer it when there is more than what is already visible.
+  const offerAll = !!matchCount && total > visibleIds.length;
+
+  return (
+    <div className={styles.selectBar}>
+      <label className={styles.selectAllLabel}>
+        <SelectCheckbox
+          checked={all}
+          indeterminate={some}
+          onChange={() => selection.setMany(visibleIds, !all)}
+          label="Select all videos on this page"
+        />
+        Select this page ({visibleIds.length})
+      </label>
+
+      {offerAll && matchCount && (
+        <>
+          <button
+            type="button"
+            className={styles.selectLink}
+            disabled={tooMany || annotationFiltered}
+            onClick={() => selection.selectAllMatching(matchFilters, total)}
+          >
+            Select all {total} videos in these results
+          </button>
+          {tooMany && (
+            <span className={styles.selectHint}>
+              Too many to select at once (max {matchCount.max_selectable}). Narrow the filters.
+            </span>
+          )}
+          {!tooMany && annotationFiltered && (
+            <span className={styles.selectHint}>Set the annotation filter to “Any video” to select everything.</span>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function VideosPage() {
   // Raw text box value vs. the debounced term actually sent to the API.
   const [searchInput, setSearchInput] = useState("");
@@ -338,9 +424,6 @@ export default function VideosPage() {
   const [validity, setValidity] = useState<ValidityFilter>("all");
   const [annotation, setAnnotation] = useState<AnnotationFilter>("all");
   const [skip, setSkip] = useState(0);
-
-  // Selected videos for bulk download / bulk submit. Lives here so it survives paging.
-  const selection = useVideoSelection();
 
   // CSV file filter: the selected file's job_id (or ALL_CSV), plus the list for the dropdown.
   const [jobId, setJobId] = useState<string>(ALL_CSV);
@@ -356,7 +439,8 @@ export default function VideosPage() {
   const [openId, setOpenId] = useState<string | null>(null);
 
   // "Submit for annotation" state, shared by the tiles and the modal.
-  // Bumped to re-run the search (e.g. after a 409, to pick up the existing request's status).
+  // Bumped to re-run the search (e.g. after a 409, or after a select-all submit,
+  // to pick up the new requests' status).
   const [reloadKey, setReloadKey] = useState(0);
   const [submitting, setSubmitting] = useState<Set<string>>(new Set());
   const [submitErrors, setSubmitErrors] = useState<Record<string, string>>({});
@@ -502,37 +586,6 @@ export default function VideosPage() {
     }
   }
 
-  // ---- Bulk submit for annotation ----
-
-  async function handleBulkSubmit() {
-    const ids = selection.ids;
-    if (ids.length === 0 || bulkBusy) return;
-
-    setBulkBusy(true);
-    setBulkMessage(null);
-    try {
-      const res = await submitVideosForAnnotation(ids);
-
-      // Show the new / existing requests on the videos that are on this page.
-      for (const item of res.items) {
-        if (item.annotation) {
-          const annotation = item.annotation;
-          updateVideo(item.video_id, () => ({ annotation }));
-        }
-      }
-
-      const parts = [`${res.created} submitted`];
-      if (res.skipped_active > 0) parts.push(`${res.skipped_active} already in progress`);
-      if (res.not_found > 0) parts.push(`${res.not_found} not found`);
-      setBulkMessage({ kind: "ok", text: parts.join(" · ") });
-      selection.clear();
-    } catch (err) {
-      setBulkMessage({ kind: "error", text: submitErrorMessage(err) });
-    } finally {
-      setBulkBusy(false);
-    }
-  }
-
   const submitControl: SubmitControl = {
     submitting,
     errors: submitErrors,
@@ -547,6 +600,82 @@ export default function VideosPage() {
     [groups, annotation, openId],
   );
   const navList = useMemo(() => flatten(visibleGroups), [visibleGroups]);
+  const visibleIds = useMemo(() => navList.map((e) => e.video.video_id), [navList]);
+
+  // Selected videos for bulk download / bulk submit. Lives here so it survives paging.
+  // It needs the visible ids so unticking one video during "select all results" can
+  // fall back to "this page minus that video".
+  const selection = useVideoSelection(visibleIds);
+
+  // The filters that define "all results": the same ones the search request uses.
+  const matchFilters = useMemo<VideoFilters>(
+    () => ({
+      q: searchTerm || undefined,
+      is_valid: VALIDITY_TO_PARAM[validity],
+      job_id: jobId === ALL_CSV ? undefined : jobId,
+    }),
+    [searchTerm, validity, jobId],
+  );
+
+  // How many VIDEOS (not sentences) those filters match, for "Select all N videos".
+  const [matchCount, setMatchCount] = useState<VideoCount | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setMatchCount(null);
+    getVideoCount(matchFilters)
+      .then((c) => {
+        if (!cancelled) setMatchCount(c);
+      })
+      .catch(() => {
+        if (!cancelled) setMatchCount(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [matchFilters]);
+
+  // "All results" stops meaning the same thing once the filters change, so drop it.
+  const { clearMatching } = selection;
+  useEffect(() => {
+    clearMatching();
+  }, [matchFilters, annotation, clearMatching]);
+
+  // ---- Bulk submit for annotation ----
+
+  async function handleBulkSubmit() {
+    const matching = selection.matching;
+    const ids = selection.ids;
+    if ((!matching && ids.length === 0) || bulkBusy) return;
+
+    setBulkBusy(true);
+    setBulkMessage(null);
+    try {
+      const res = await submitVideosForAnnotation(matching ? { filters: matching.filters } : { videoIds: ids });
+
+      if (matching) {
+        // Could be thousands of videos: just reload this page to pick up the new statuses.
+        setReloadKey((k) => k + 1);
+      } else {
+        // Show the new / existing requests on the videos that are on this page.
+        for (const item of res.items) {
+          if (item.annotation) {
+            const ann = item.annotation;
+            updateVideo(item.video_id, () => ({ annotation: ann }));
+          }
+        }
+      }
+
+      const parts = [`${res.created} submitted`];
+      if (res.skipped_active > 0) parts.push(`${res.skipped_active} already in progress`);
+      if (res.not_found > 0) parts.push(`${res.not_found} not found`);
+      setBulkMessage({ kind: "ok", text: parts.join(" · ") });
+      selection.clear();
+    } catch (err) {
+      setBulkMessage({ kind: "error", text: submitErrorMessage(err) });
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   const openEntry = openId ? allEntries.find((e) => e.video.video_id === openId) : undefined;
 
@@ -590,8 +719,9 @@ export default function VideosPage() {
       <div className={styles.header}>
         <h1 className={styles.title}>Videos</h1>
         <p className={styles.subtitle}>
-          Search by sentence text or pick a CSV file, then open a video to review it. Inside the viewer use ← → to move
-          between videos, Space to play or pause, and add notes, tags and translations on the right.
+          Search by sentence text or pick a CSV file, then open a video to review it. Tick videos, or use “Select all”
+          to pick everything in the results, then submit them for annotation or download them. Inside the viewer use
+          ← → to move between videos, Space to play or pause, and add notes, tags and translations on the right.
         </p>
       </div>
 
@@ -659,10 +789,21 @@ export default function VideosPage() {
       ) : (
         <>
           <p className={styles.resultCount}>
-            {total} sentence{total === 1 ? "" : "s"} found · {videosOnPage} video{videosOnPage === 1 ? "" : "s"} on this
-            page ·{" "}
+            {total} sentence{total === 1 ? "" : "s"} found
+            {matchCount ? ` · ${matchCount.video_count} video${matchCount.video_count === 1 ? "" : "s"} in total` : ""}{" "}
+            · {videosOnPage} video{videosOnPage === 1 ? "" : "s"} on this page ·{" "}
             <span className={todoOnPage > 0 ? styles.todoText : undefined}>{todoOnPage} not annotated yet</span>
           </p>
+
+          {visibleGroups.length > 0 && (
+            <SelectionToolbar
+              selection={selection}
+              visibleIds={visibleIds}
+              matchCount={matchCount}
+              matchFilters={matchFilters}
+              annotationFiltered={annotation !== "all"}
+            />
+          )}
 
           {visibleGroups.length === 0 ? (
             <p className={styles.stateText}>
@@ -711,9 +852,10 @@ export default function VideosPage() {
         </>
       )}
 
-      {/* Floating bar: Download ZIP + Submit for annotation for every ticked video. */}
+      {/* Floating bar: Download ZIP + Submit for annotation for every selected video. */}
       <BulkDownloadBar
         videoIds={selection.ids}
+        matching={selection.matching}
         onClear={selection.clear}
         onSubmitForAnnotation={() => void handleBulkSubmit()}
         submitBusy={bulkBusy}

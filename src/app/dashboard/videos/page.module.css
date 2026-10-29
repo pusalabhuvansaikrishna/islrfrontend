@@ -1370,3 +1370,49 @@
   font-size: 13px;
   color: var(--danger);
 }
+
+
+.selectBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 12px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.selectAllLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.selectLink {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.selectLink:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.selectLink:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.selectHint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
