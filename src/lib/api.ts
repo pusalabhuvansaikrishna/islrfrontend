@@ -183,6 +183,21 @@ export async function getJob(jobId: string): Promise<Job> {
   return apiFetch<Job>(`/jobs/${jobId}`);
 }
 
+/**
+ * Deletes a job together with its transcriptions and uploaded CSV record.
+ *
+ * Backend route: DELETE /jobs/{job_id}, answers 204 No Content (apiFetch
+ * already handles the empty body). Requires the "DeleteJob" permission.
+ *
+ * Errors worth surfacing to the user (ApiError.status):
+ *   - 403: caller lacks "DeleteJob"
+ *   - 404: job not found (e.g. already deleted)
+ *   - 409: the job has sessions (or one was just created) and can't be deleted
+ */
+export async function deleteJob(jobId: string): Promise<void> {
+  return apiFetch<void>(`/jobs/${jobId}`, { method: "DELETE" });
+}
+
 // ---------------- Job detail: Overview / Transcriptions / Sessions ----------------
 
 export type JobOverviewCoverage = {

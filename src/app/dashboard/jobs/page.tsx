@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./page.module.css";
 import RequestJobModal from "@/components/RequestJobModal";
-import { listJobs, ApiError, type Job, type JobStatus } from "@/lib/api";
+import { listJobs, deleteJob, ApiError, type Job, type JobStatus } from "@/lib/api";
 
 const STATUS_LABEL: Record<JobStatus, string> = {
   PENDING: "Pending",
@@ -44,6 +44,16 @@ export default function JobsPage() {
   const [search, setSearch] = useState("");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Delete flow
+  const [deleteTarget, setDeleteTarget] = useState<Job | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // TODO: replace with your real permission check (e.g. from your auth
+  // context: user.permissions.includes("DeleteJob")). The backend enforces
+  // this regardless; this only controls whether the button is shown.
+  const canDelete = true;
+
   // Debounce the raw input into the value that actually triggers a fetch,
   // and reset to page 0 whenever the search term changes.
   useEffect(() => {
@@ -74,14 +84,60 @@ export default function JobsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, search]);
 
+  // Close the confirm dialog with Escape (unless a delete is in flight).
+  useEffect(() => {
+    if (!deleteTarget) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !deleting) closeDeleteDialog();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deleteTarget, deleting]);
+
   function goToJob(jobId: string) {
     router.push(`/dashboard/jobs/${jobId}`);
   }
 
   function handleRowKeyDown(event: React.KeyboardEvent<HTMLTableRowElement>, jobId: string) {
+    // Ignore key presses that bubbled up from the inner delete button.
+    if (event.target !== event.currentTarget) return;
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       goToJob(jobId);
+    }
+  }
+
+  function openDeleteDialog(event: React.MouseEvent, job: Job) {
+    event.stopPropagation(); // don't trigger the row's navigation
+    setDeleteError(null);
+    setDeleteTarget(job);
+  }
+
+  function closeDeleteDialog() {
+    setDeleteTarget(null);
+    setDeleteError(null);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteJob(deleteTarget.job_id);
+      const wasLastOnPage = jobs.length === 1;
+      setDeleteTarget(null);
+      if (wasLastOnPage && page > 0) {
+        setPage(page - 1); // effect reloads the previous page
+      } else {
+        loadJobs(page, search); // refresh so totals and paging stay correct
+      }
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : "Couldn't delete the job.");
+      // The row's data may be stale (e.g. a session was just created), so refresh it.
+      loadJobs(page, search);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -153,47 +209,77 @@ export default function JobsPage() {
                     <th>Progress</th>
                     <th>Sessions</th>
                     <th>Created</th>
+                    {canDelete && <th className={styles.actionsHeader}>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {jobs.map((job) => (
-                    <tr
-                      key={job.job_id}
-                      onClick={() => goToJob(job.job_id)}
-                      onKeyDown={(event) => handleRowKeyDown(event, job.job_id)}
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`Open ${displayJobId(job.job_id)}`}
-                      style={{ cursor: "pointer" }}
-                    >
-                      <td>
-                        <div className={styles.jobIdCell}>
-                          <span className={styles.jobId}>{displayJobId(job.job_id)}</span>
-                          <span className={styles.jobFilename}>{job.filename}</span>
-                        </div>
-                      </td>
-                      <td className={styles.requestorCell}>{job.requestor_name}</td>
-                      <td>
-                        <span className={`${styles.statusBadge} ${styles[`status_${job.status.toLowerCase()}`]}`}>
-                          <span className={styles.statusDot} />
-                          {STATUS_LABEL[job.status]}
-                        </span>
-                      </td>
-                      <td>
-                        <div className={styles.progressCell}>
-                          <div className={styles.progressTrack}>
-                            <div
-                              className={`${styles.progressFill} ${job.insights.progress_percent === 100 ? styles.progressFillDone : ""}`}
-                              style={{ width: `${job.insights.progress_percent}%` }}
-                            />
+                  {jobs.map((job) => {
+                    const hasSessions = job.insights.sessions_count > 0;
+                    return (
+                      <tr
+                        key={job.job_id}
+                        onClick={() => goToJob(job.job_id)}
+                        onKeyDown={(event) => handleRowKeyDown(event, job.job_id)}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`Open ${displayJobId(job.job_id)}`}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <td>
+                          <div className={styles.jobIdCell}>
+                            <span className={styles.jobId}>{displayJobId(job.job_id)}</span>
+                            <span className={styles.jobFilename}>{job.filename}</span>
                           </div>
-                          <span className={styles.progressPercent}>{job.insights.progress_percent}%</span>
-                        </div>
-                      </td>
-                      <td className={styles.sessionsCell}>{job.insights.sessions_count}</td>
-                      <td className={styles.createdCell}>{formatDate(job.created_at)}</td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className={styles.requestorCell}>{job.requestor_name}</td>
+                        <td>
+                          <span className={`${styles.statusBadge} ${styles[`status_${job.status.toLowerCase()}`]}`}>
+                            <span className={styles.statusDot} />
+                            {STATUS_LABEL[job.status]}
+                          </span>
+                        </td>
+                        <td>
+                          <div className={styles.progressCell}>
+                            <div className={styles.progressTrack}>
+                              <div
+                                className={`${styles.progressFill} ${job.insights.progress_percent === 100 ? styles.progressFillDone : ""}`}
+                                style={{ width: `${job.insights.progress_percent}%` }}
+                              />
+                            </div>
+                            <span className={styles.progressPercent}>{job.insights.progress_percent}%</span>
+                          </div>
+                        </td>
+                        <td className={styles.sessionsCell}>{job.insights.sessions_count}</td>
+                        <td className={styles.createdCell}>{formatDate(job.created_at)}</td>
+                        {canDelete && (
+                          <td className={styles.actionsCell}>
+                            <button
+                              type="button"
+                              className={styles.deleteButton}
+                              onClick={(event) => openDeleteDialog(event, job)}
+                              disabled={hasSessions}
+                              title={
+                                hasSessions
+                                  ? "This job has sessions and can't be deleted"
+                                  : "Delete job"
+                              }
+                              aria-label={`Delete ${displayJobId(job.job_id)}`}
+                            >
+                              <svg viewBox="0 0 16 16" width="15" height="15" fill="none" aria-hidden="true">
+                                <path
+                                  d="M2.5 4h11M6.5 4V2.5h3V4M4 4l.6 9a1 1 0 001 .9h4.8a1 1 0 001-.9L12 4M6.8 6.8v4M9.2 6.8v4"
+                                  stroke="currentColor"
+                                  strokeWidth="1.3"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -232,6 +318,56 @@ export default function JobsPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
       />
+
+      {deleteTarget && (
+        <div
+          className={styles.dialogOverlay}
+          onClick={() => {
+            if (!deleting) closeDeleteDialog();
+          }}
+        >
+          <div
+            className={styles.dialog}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-job-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="delete-job-title" className={styles.dialogTitle}>
+              Delete {displayJobId(deleteTarget.job_id)}?
+            </h2>
+            <p className={styles.dialogText}>
+              This permanently deletes the job, its {deleteTarget.insights.total_sentences} transcription(s)
+              and the uploaded CSV <strong>{deleteTarget.filename}</strong>. This can&apos;t be undone.
+            </p>
+
+            {deleteError && (
+              <p className={styles.dialogError} role="alert">
+                {deleteError}
+              </p>
+            )}
+
+            <div className={styles.dialogActions}>
+              <button
+                type="button"
+                className={styles.dialogCancel}
+                onClick={closeDeleteDialog}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={styles.dialogDelete}
+                onClick={confirmDelete}
+                disabled={deleting}
+              >
+                {deleting ? "Deleting…" : "Delete job"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
